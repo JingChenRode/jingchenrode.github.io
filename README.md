@@ -1,4 +1,4 @@
-# jing.github.io
+# jingchenrode.github.io
 Everything about tech
 
 ## License
