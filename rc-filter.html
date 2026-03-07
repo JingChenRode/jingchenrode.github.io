@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RC Filter Designer</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #4b5563;
+      --accent: #0f766e;
+      --border: #d1d5db;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .inline-row {
+      display: flex;
+      align-items: end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1, h2 {
+      margin-top: 0;
+    }
+
+    p {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .grid.filters {
+      grid-template-columns: 1.1fr 1fr 90px 1fr 90px;
+      align-items: end;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    button {
+      margin-top: 8px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #ecfeff;
+      border: 1px solid #99f6e4;
+      color: #134e4a;
+      font-weight: 600;
+      min-height: 20px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    @media (max-width: 760px) {
+      .grid.filters {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>RC Low-Pass / High-Pass Filter Designer</h1>
+    <p>Use <code>f_c = 1 / (2piRC)</code>. For a first-order RC filter, low-pass and high-pass share the same cutoff-frequency formula.</p>
+
+    <div class="card">
+      <div class="inline-row">
+        <div>
+          <label for="seriesSelect">Preferred Series</label>
+          <select id="seriesSelect">
+            <option value="E24">E24</option>
+            <option value="E48">E48</option>
+            <option value="E96" selected>E96</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1) Calculate Cutoff Frequency</h2>
+      <div class="grid filters">
+        <div>
+          <label for="filterType">Filter Type</label>
+          <select id="filterType">
+            <option>Low-pass</option>
+            <option>High-pass</option>
+          </select>
+        </div>
+        <div>
+          <label for="rValue">R (Ohm)</label>
+          <input id="rValue" type="number" min="0" step="any" value="1000">
+        </div>
+        <div>
+          <label for="rUnit">R Unit</label>
+          <select id="rUnit">
+            <option value="1">Ohm</option>
+            <option value="1000">kOhm</option>
+          </select>
+        </div>
+        <div>
+          <label for="cValue">C (Farad)</label>
+          <input id="cValue" type="number" min="0" step="any" value="100">
+        </div>
+        <div>
+          <label for="cUnit">C Unit</label>
+          <select id="cUnit">
+            <option value="1e-6">uF</option>
+            <option value="1e-9">nF</option>
+            <option value="1e-12">pF</option>
+          </select>
+        </div>
+      </div>
+      <button id="calcFcBtn" type="button">Calculate f_c</button>
+      <div class="result" id="fcResult"></div>
+    </div>
+
+    <div class="card">
+      <h2>2) Solve Component Value From Target f_c</h2>
+      <div class="grid">
+        <div>
+          <label for="solveFor">Solve For</label>
+          <select id="solveFor">
+            <option value="R">R (Ohm)</option>
+            <option value="C">C (Farad)</option>
+          </select>
+        </div>
+        <div>
+          <label for="targetFc">Target f_c (Hz)</label>
+          <input id="targetFc" type="number" min="0" step="any" value="1000">
+        </div>
+        <div>
+          <label for="knownValue">Known Value</label>
+          <input id="knownValue" type="number" min="0" step="any" value="100">
+        </div>
+        <div>
+          <label for="knownUnit">Known Unit</label>
+          <select id="knownUnit"></select>
+        </div>
+      </div>
+      <button id="solveBtn" type="button">Solve</button>
+      <div class="result" id="solveResult"></div>
+    </div>
+
+    <p><a href="./index.html">Back to home</a></p>
+  </div>
+
+  <script>
+    const TWO_PI = 2 * Math.PI;
+    const E96_BASE = [
+      100, 102, 105, 107, 110, 113, 115, 118, 121, 124, 127, 130,
+      133, 137, 140, 143, 147, 150, 154, 158, 162, 165, 169, 174,
+      178, 182, 187, 191, 196, 200, 205, 210, 215, 221, 226, 232,
+      237, 243, 249, 255, 261, 267, 274, 280, 287, 294, 301, 309,
+      316, 324, 332, 340, 348, 357, 365, 374, 383, 392, 402, 412,
+      422, 432, 442, 453, 464, 475, 487, 499, 511, 523, 536, 549,
+      562, 576, 590, 604, 619, 634, 649, 665, 681, 698, 715, 732,
+      750, 768, 787, 806, 825, 845, 866, 887, 909, 931, 953, 976
+    ];
+    const E48_BASE = [
+      100, 105, 110, 115, 121, 127, 133, 140, 147, 154, 162, 169,
+      178, 187, 196, 205, 215, 226, 237, 249, 261, 274, 287, 301,
+      316, 332, 348, 365, 383, 402, 422, 442, 464, 487, 511, 536,
+      562, 590, 619, 649, 681, 715, 750, 787, 825, 866, 909, 953
+    ];
+    const E24_BASE = [
+      100, 110, 120, 130, 150, 160, 180, 200, 220, 240, 270, 300,
+      330, 360, 390, 430, 470, 510, 560, 620, 680, 750, 820, 910
+    ];
+    const SERIES_COLORS = {
+      E96: "#7e22ce",
+      E48: "#0f766e",
+      E24: "#111827"
+    };
+    let currentSeries = "E96";
+
+    function formatNumber(value) {
+      if (!Number.isFinite(value)) return "Invalid";
+      if (value === 0) return "0";
+      const abs = Math.abs(value);
+      if (abs >= 1000 || abs < 0.001) return value.toExponential(4);
+      return value.toFixed(6).replace(/\.?0+$/, "");
+    }
+
+    function toPositiveNumber(raw) {
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+
+    function toBaseR(value, unitScale) {
+      return value * Number(unitScale);
+    }
+
+    function toBaseC(value, unitScale) {
+      return value * Number(unitScale);
+    }
+
+    function getSeriesBase() {
+      const series = currentSeries;
+      if (series === "E24") return E24_BASE;
+      if (series === "E48") return E48_BASE;
+      return E96_BASE;
+    }
+
+    function getClosestSeriesIndex(mantissa, baseArray) {
+      let bestIndex = 0;
+      let bestDiff = Infinity;
+      for (let i = 0; i < baseArray.length; i += 1) {
+        const diff = Math.abs(baseArray[i] - mantissa);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIndex = i;
+        }
+      }
+      return bestIndex;
+    }
+
+    function nextE96Value(value, direction) {
+      const baseArray = getSeriesBase();
+      const v = Number(value);
+      if (!Number.isFinite(v) || v <= 0) {
+        return direction > 0 ? baseArray[0] : baseArray[baseArray.length - 1] * 0.1;
+      }
+
+      const decadePower = Math.floor(Math.log10(v)) - 2;
+      const decadeScale = Math.pow(10, decadePower);
+      const mantissa = v / decadeScale;
+      const closestIndex = getClosestSeriesIndex(mantissa, baseArray);
+      const closestMantissa = baseArray[closestIndex];
+      const tol = closestMantissa * 1e-9;
+      const isOnSeries = Math.abs(mantissa - closestMantissa) <= tol;
+      let nextIndex = closestIndex;
+      let nextDecadePower = decadePower;
+
+      if (direction > 0) {
+        if (isOnSeries) {
+          nextIndex += 1;
+        } else if (mantissa > closestMantissa) {
+          nextIndex += 1;
+        }
+        if (nextIndex >= baseArray.length) {
+          nextIndex = 0;
+          nextDecadePower += 1;
+        }
+      } else {
+        if (isOnSeries) {
+          nextIndex -= 1;
+        } else if (mantissa < closestMantissa) {
+          nextIndex -= 1;
+        }
+        if (nextIndex < 0) {
+          nextIndex = baseArray.length - 1;
+          nextDecadePower -= 1;
+        }
+      }
+
+      const nextValue = baseArray[nextIndex] * Math.pow(10, nextDecadePower);
+      return Number(nextValue.toPrecision(6));
+    }
+
+    function nearestE96Value(value) {
+      const baseArray = getSeriesBase();
+      const v = Number(value);
+      if (!Number.isFinite(v) || v <= 0) {
+        return baseArray[0];
+      }
+
+      const decadePower = Math.floor(Math.log10(v)) - 2;
+      const decadeScale = Math.pow(10, decadePower);
+      const mantissa = v / decadeScale;
+      const idx = getClosestSeriesIndex(mantissa, baseArray);
+      const nearest = baseArray[idx] * decadeScale;
+      return Number(nearest.toPrecision(6));
+    }
+
+    function attachE96Stepper(inputId, onStep) {
+      const input = document.getElementById(inputId);
+      let lastValue = Number(input.value);
+
+      function setAndRecalc(value) {
+        input.value = String(value);
+        lastValue = value;
+        onStep();
+      }
+
+      input.addEventListener("keydown", function (event) {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+          return;
+        }
+        event.preventDefault();
+        const dir = event.key === "ArrowUp" ? 1 : -1;
+        const current = Number(input.value);
+        const base = Number.isFinite(current) && current > 0 ? current : lastValue;
+        setAndRecalc(nextE96Value(base, dir));
+      });
+
+      function applyNonKeyboardStep() {
+        const raw = Number(input.value);
+        if (!Number.isFinite(raw) || raw <= 0) {
+          return;
+        }
+
+        if (!Number.isFinite(lastValue) || lastValue <= 0) {
+          setAndRecalc(nearestE96Value(raw));
+          return;
+        }
+
+        if (raw > lastValue) {
+          setAndRecalc(nextE96Value(lastValue, 1));
+          return;
+        }
+        if (raw < lastValue) {
+          setAndRecalc(nextE96Value(lastValue, -1));
+          return;
+        }
+
+        setAndRecalc(nearestE96Value(raw));
+      }
+
+      // Handles mouse spinner clicks and similar non-keyboard increments.
+      input.addEventListener("input", function (event) {
+        const inputType = event.inputType || "";
+        const isManualTyping =
+          inputType.indexOf("insertText") === 0 ||
+          inputType.indexOf("deleteContent") === 0 ||
+          inputType === "insertFromPaste" ||
+          inputType === "insertCompositionText";
+
+        // Allow free manual input without snapping to E-series values.
+        if (isManualTyping) {
+          const raw = Number(input.value);
+          if (Number.isFinite(raw) && raw > 0) {
+            lastValue = raw;
+          }
+          onStep();
+          return;
+        }
+        applyNonKeyboardStep();
+      });
+
+      // On blur, keep user-entered value; only refresh calculation/state.
+      input.addEventListener("change", function () {
+        const raw = Number(input.value);
+        if (Number.isFinite(raw) && raw > 0) {
+          lastValue = raw;
+        }
+        onStep();
+      });
+
+      return {
+        snapToCurrentSeries: function () {
+          setAndRecalc(nearestE96Value(input.value));
+        },
+        setColor: function (color) {
+          input.style.color = color;
+        }
+      };
+    }
+
+    function getSeriesColor() {
+      const series = currentSeries;
+      return SERIES_COLORS[series] || SERIES_COLORS.E24;
+    }
+
+    function applySeriesColorToInputs(color) {
+      document.getElementById("rValue").style.color = color;
+      document.getElementById("cValue").style.color = color;
+      document.getElementById("knownValue").style.color = color;
+    }
+
+    function setKnownUnitOptions() {
+      const solveFor = document.getElementById("solveFor").value;
+      const knownUnit = document.getElementById("knownUnit");
+      knownUnit.innerHTML = "";
+
+      if (solveFor === "R") {
+        knownUnit.innerHTML = [
+          '<option value="1e-6">uF</option>',
+          '<option value="1e-9">nF</option>',
+          '<option value="1e-12">pF</option>'
+        ].join("");
+      } else {
+        knownUnit.innerHTML = [
+          '<option value="1">Ohm</option>',
+          '<option value="1000">kOhm</option>'
+        ].join("");
+      }
+    }
+
+    function calculateFc() {
+      const filterType = document.getElementById("filterType").value;
+      const rRaw = toPositiveNumber(document.getElementById("rValue").value);
+      const cRaw = toPositiveNumber(document.getElementById("cValue").value);
+      const rUnit = document.getElementById("rUnit").value;
+      const cUnit = document.getElementById("cUnit").value;
+      const out = document.getElementById("fcResult");
+
+      if (!rRaw || !cRaw) {
+        out.textContent = "Enter positive values for both R and C.";
+        return;
+      }
+
+      const r = toBaseR(rRaw, rUnit);
+      const c = toBaseC(cRaw, cUnit);
+      const fc = 1 / (TWO_PI * r * c);
+      out.textContent = filterType + " cutoff frequency f_c = " + formatNumber(fc) + " Hz";
+    }
+
+    function solveFromTarget() {
+      const solveFor = document.getElementById("solveFor").value;
+      const fc = toPositiveNumber(document.getElementById("targetFc").value);
+      const knownRaw = toPositiveNumber(document.getElementById("knownValue").value);
+      const knownUnit = document.getElementById("knownUnit").value;
+      const out = document.getElementById("solveResult");
+
+      if (!fc || !knownRaw) {
+        out.textContent = "Enter positive values for target f_c and known value.";
+        return;
+      }
+
+      if (solveFor === "R") {
+        const known = toBaseC(knownRaw, knownUnit);
+        const r = 1 / (TWO_PI * fc * known);
+        out.textContent = "Required R = " + formatNumber(r) + " Ohm";
+      } else {
+        const known = toBaseR(knownRaw, knownUnit);
+        const c = 1 / (TWO_PI * fc * known);
+        out.textContent = "Required C = " + formatNumber(c) + " F";
+      }
+    }
+
+    document.getElementById("solveFor").addEventListener("change", setKnownUnitOptions);
+    document.getElementById("calcFcBtn").addEventListener("click", calculateFc);
+    document.getElementById("solveBtn").addEventListener("click", solveFromTarget);
+    const rStepper = attachE96Stepper("rValue", calculateFc);
+    const cStepper = attachE96Stepper("cValue", calculateFc);
+    const knownStepper = attachE96Stepper("knownValue", solveFromTarget);
+
+    function applySeriesSelection() {
+      const seriesSelect = document.getElementById("seriesSelect");
+      const rawSeries = seriesSelect.value;
+      currentSeries = rawSeries === "E24" || rawSeries === "E48" || rawSeries === "E96" ? rawSeries : "E96";
+      const color = getSeriesColor();
+      rStepper.setColor(color);
+      cStepper.setColor(color);
+      knownStepper.setColor(color);
+      rStepper.snapToCurrentSeries();
+      cStepper.snapToCurrentSeries();
+      knownStepper.snapToCurrentSeries();
+    }
+
+    document.getElementById("seriesSelect").addEventListener("change", applySeriesSelection);
+    document.getElementById("seriesSelect").addEventListener("input", applySeriesSelection);
+    applySeriesColorToInputs(getSeriesColor());
+    setKnownUnitOptions();
+    applySeriesSelection();
+    calculateFc();
+  </script>
+</body>
+</html>
