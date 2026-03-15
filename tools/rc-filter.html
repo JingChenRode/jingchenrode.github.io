@@ -3,36 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>R C Low-Pass / High-Pass Filter</title>
+  <title>RC Low-Pass / High-Pass Filter</title>
   <style>
     :root {
-      --bg: #f6f8fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #4b5563;
-      --accent: #0f766e;
-      --border: #d1d5db;
+      --bg: #f2f4f7;
+      --card: #fbfcfe;
+      --text: #202938;
+      --muted: #5b6575;
+      --accent: #2f5d62;
+      --border: #d8dde6;
+      --result-bg: #eef6f6;
+      --result-border: #b7d5d7;
+      --result-text: #23474b;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at top left, rgba(47, 93, 98, 0.10), transparent 30rem),
+        linear-gradient(180deg, #f8fafc 0%, #edf1f5 100%);
       color: var(--text);
     }
 
     .wrap {
       max-width: 860px;
       margin: 0 auto;
-      padding: 24px 16px 40px;
+      padding: 32px 16px 48px;
     }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 18px 40px rgba(32, 41, 56, 0.08);
     }
 
     .inline-row {
@@ -42,12 +52,20 @@
       flex-wrap: wrap;
     }
 
-    h1, h2 {
+    h1,
+    h2 {
       margin-top: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.08;
+      margin-bottom: 12px;
     }
 
     p {
       color: var(--muted);
+      line-height: 1.7;
     }
 
     .grid {
@@ -67,13 +85,16 @@
       margin-bottom: 4px;
     }
 
-    input, select {
+    input,
+    select {
       width: 100%;
       box-sizing: border-box;
       padding: 8px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 14px;
+      background: #ffffff;
+      color: var(--text);
     }
 
     button {
@@ -81,18 +102,25 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 8px;
-      padding: 10px 14px;
+      border-radius: 10px;
+      padding: 10px 16px;
       cursor: pointer;
+    }
+
+    input:focus,
+    select:focus,
+    button:focus {
+      outline: 2px solid rgba(47, 93, 98, 0.25);
+      outline-offset: 2px;
     }
 
     .result {
       margin-top: 12px;
       padding: 10px;
-      border-radius: 8px;
-      background: #ecfeff;
-      border: 1px solid #99f6e4;
-      color: #134e4a;
+      border-radius: 10px;
+      background: var(--result-bg);
+      border: 1px solid var(--result-border);
+      color: var(--result-text);
       font-weight: 600;
       min-height: 20px;
     }
@@ -218,7 +246,7 @@
     ];
     const SERIES_COLORS = {
       E96: "#7e22ce",
-      E48: "#0f766e",
+      E48: "#2f5d62",
       E24: "#111827"
     };
     let currentSeries = "E96";
@@ -366,7 +394,6 @@
         setAndRecalc(nearestE96Value(raw));
       }
 
-      // Handles mouse spinner clicks and similar non-keyboard increments.
       input.addEventListener("input", function (event) {
         const inputType = event.inputType || "";
         const isManualTyping =
@@ -375,7 +402,6 @@
           inputType === "insertFromPaste" ||
           inputType === "insertCompositionText";
 
-        // Allow free manual input without snapping to E-series values.
         if (isManualTyping) {
           const raw = Number(input.value);
           if (Number.isFinite(raw) && raw > 0) {
@@ -387,7 +413,6 @@
         applyNonKeyboardStep();
       });
 
-      // On blur, keep user-entered value; only refresh calculation/state.
       input.addEventListener("change", function () {
         const raw = Number(input.value);
         if (Number.isFinite(raw) && raw > 0) {
