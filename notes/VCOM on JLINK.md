@@ -87,7 +87,30 @@ VTref = 0.000V
 
 VCOM will not function.
 
-## 5. J-Link 20-Pin Connector Pins Used by VCOM
+## 5. J-Link 20-Pin Header Pinout in SWD Mode
+
+When the J-Link is used in **SWD mode**, the 20-pin header is typically wired as follows:
+
+| Signal | Odd Pins | Even Pins | Signal |
+| --- | --- | --- | --- |
+| VTref | 1 | 2 | Vsupply / NC |
+| NC (`nTRST` only for JTAG compatibility) | 3 | 4 | GND |
+| NC or **VCOM TX** | 5 | 6 | GND |
+| SWDIO | 7 | 8 | GND |
+| SWCLK | 9 | 10 | GND |
+| NC (`RTCK` only for JTAG compatibility) | 11 | 12 | GND |
+| SWO | 13 | 14 | Reserved |
+| nRESET | 15 | 16 | Reserved |
+| NC or **VCOM RX** | 17 | 18 | Reserved |
+| 5V target supply | 19 | 20 | Reserved |
+
+Notes:
+
+- Pin `5` becomes **J-Link TX** when VCOM is enabled.
+- Pin `17` becomes **J-Link RX** when VCOM is enabled.
+- Reserved pins should usually be left open unless required by a specific SEGGER feature.
+
+For **VCOM**, the pins that matter are still:
 
 | Pin | Function |
 | --- | --- |
@@ -156,3 +179,4 @@ The PC serial terminal should then work as the MCU UART console.
 - VCOM pins are available **only on the 20-pin JTAG connector**.
 - The **10-pin Cortex connector does not expose VCOM**.
 - VTref must always be present for the J-Link to drive target I/O.
+
