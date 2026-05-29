@@ -1,534 +1,1466 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RC Low-Pass / High-Pass Filter</title>
+  <title>RC Filter Designer — interactive low-pass / high-pass tool</title>
+  <meta name="description" content="Design first-order RC low-pass and high-pass filters: live Bode plot (magnitude + phase), E-series component snapping, step response, schematic, and a shareable link.">
   <style>
     :root {
-      --bg: #f2f4f7;
+      --bg-grad-1: rgba(47, 93, 98, 0.10);
+      --bg-top: #f8fafc;
+      --bg-bottom: #edf1f5;
       --card: #fbfcfe;
+      --card-2: #ffffff;
       --text: #202938;
       --muted: #5b6575;
       --accent: #2f5d62;
+      --accent-2: #7e22ce;
+      --accent-soft: #eef6f6;
       --border: #d8dde6;
       --result-bg: #eef6f6;
       --result-border: #b7d5d7;
       --result-text: #23474b;
+      --grid: #e3e8ef;
+      --grid-strong: #c3ccd8;
+      --mag: #2f5d62;
+      --phase: #c2410c;
+      --asymptote: #94a3b8;
+      --plot-bg: #ffffff;
+      --chip-bg: #eef2f6;
+      --shadow: 0 18px 40px rgba(32, 41, 56, 0.08);
+      --danger: #b42318;
+      --ok: #1a7f4b;
     }
 
-    * {
-      box-sizing: border-box;
+    html[data-theme="dark"] {
+      --bg-grad-1: rgba(94, 234, 212, 0.07);
+      --bg-top: #0e1726;
+      --bg-bottom: #0a0f1a;
+      --card: #121a29;
+      --card-2: #0f1623;
+      --text: #e6ebf2;
+      --muted: #9aa6b8;
+      --accent: #5eead4;
+      --accent-2: #c084fc;
+      --accent-soft: #14313a;
+      --border: #28344a;
+      --result-bg: #14222b;
+      --result-border: #285058;
+      --result-text: #c8f5ec;
+      --grid: #1d293c;
+      --grid-strong: #2c3a52;
+      --mag: #5eead4;
+      --phase: #fb923c;
+      --asymptote: #5b6b86;
+      --plot-bg: #0c1320;
+      --chip-bg: #18222f;
+      --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+      --danger: #f87171;
+      --ok: #4ade80;
     }
+
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(47, 93, 98, 0.10), transparent 30rem),
-        linear-gradient(180deg, #f8fafc 0%, #edf1f5 100%);
+        radial-gradient(circle at top left, var(--bg-grad-1), transparent 32rem),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      background-attachment: fixed;
       color: var(--text);
+      line-height: 1.55;
     }
 
     .wrap {
-      max-width: 860px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 32px 16px 48px;
+      padding: 28px 16px 56px;
     }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+      line-height: 1.1;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      max-width: 60ch;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 0.95rem;
+    }
+
+    p { color: var(--muted); }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 20px;
-      margin-bottom: 18px;
-      box-shadow: 0 18px 40px rgba(32, 41, 56, 0.08);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
     }
 
-    .inline-row {
+    .toolbar {
       display: flex;
-      align-items: end;
-      gap: 12px;
+      align-items: center;
+      gap: 14px;
       flex-wrap: wrap;
     }
 
-    h1,
-    h2 {
-      margin-top: 0;
+    .toolbar .group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    h1 {
-      font-size: clamp(2rem, 4vw, 3rem);
-      line-height: 1.08;
-      margin-bottom: 12px;
-    }
-
-    p {
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    .grid {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .grid.filters {
-      grid-template-columns: 1.1fr 1fr 90px 1fr 90px;
-      align-items: end;
-    }
-
-    label {
-      display: block;
+    .toolbar .label {
       font-weight: 600;
-      margin-bottom: 4px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
-    input,
-    select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px;
+    /* Segmented control */
+    .segmented {
+      display: inline-flex;
+      background: var(--chip-bg);
       border: 1px solid var(--border);
       border-radius: 10px;
-      font-size: 14px;
-      background: #ffffff;
-      color: var(--text);
+      padding: 3px;
+      gap: 3px;
     }
-
-    button {
-      margin-top: 8px;
+    .segmented button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .segmented button[aria-pressed="true"] {
       background: var(--accent);
       color: #fff;
-      border: none;
+    }
+    html[data-theme="dark"] .segmented button[aria-pressed="true"] { color: #05201c; }
+
+    select, input[type="text"], input[type="number"] {
+      font: inherit;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 10px 16px;
+      background: var(--card-2);
+      color: var(--text);
+    }
+    select:focus, input:focus, button:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      outline-offset: 1px;
+    }
+
+    .iconbtn {
+      border: 1px solid var(--border);
+      background: var(--card-2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
       cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .iconbtn:hover { border-color: var(--accent); }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--border);
+      background: var(--card-2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 13px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+    .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+    /* Main two-column layout */
+    .design {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 16px;
+    }
+    @media (max-width: 820px) {
+      .design { grid-template-columns: 1fr; }
     }
 
-    input:focus,
-    select:focus,
-    button:focus {
-      outline: 2px solid rgba(47, 93, 98, 0.25);
-      outline-offset: 2px;
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
     }
+    .field .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 4px;
+      min-height: 1em;
+    }
+    .field .hint.err { color: var(--danger); }
 
-    .result {
-      margin-top: 12px;
-      padding: 10px;
+    .value-row { display: flex; align-items: stretch; gap: 8px; }
+    .value-row input { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+    .stepper { display: flex; flex-direction: column; }
+    .stepper button {
+      border: 1px solid var(--border);
+      background: var(--card-2);
+      color: var(--muted);
+      width: 30px;
+      flex: 1;
+      cursor: pointer;
+      font-size: 0.7rem;
+      line-height: 1;
+    }
+    .stepper button:first-child { border-radius: 8px 8px 0 0; border-bottom: none; }
+    .stepper button:last-child { border-radius: 0 0 8px 8px; }
+    .stepper button:hover { color: var(--accent); border-color: var(--accent); }
+
+    .adjust-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: -4px 0 14px;
+    }
+    .adjust-toggle .segmented button { padding: 4px 10px; font-size: 0.8rem; }
+
+    .snap-note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      background: var(--accent-soft);
+      border: 1px solid var(--result-border);
       border-radius: 10px;
+      padding: 8px 11px;
+      margin-top: 4px;
+    }
+    .snap-note b { color: var(--result-text); }
+    .snap-note .err { color: var(--danger); font-weight: 700; }
+    .snap-note .ok { color: var(--ok); font-weight: 700; }
+
+    /* Metrics grid */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .metric {
       background: var(--result-bg);
       border: 1px solid var(--result-border);
+      border-radius: 11px;
+      padding: 10px 12px;
+    }
+    .metric .k {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      display: block;
+    }
+    .metric .v {
+      font-size: 1.18rem;
+      font-weight: 700;
       color: var(--result-text);
-      font-weight: 600;
-      min-height: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric .v small { font-size: 0.7rem; font-weight: 600; color: var(--muted); }
+
+    /* Schematic */
+    .schematic-card { display: flex; flex-direction: column; }
+    .schematic-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+    }
+    svg.schematic { width: 100%; max-width: 360px; height: auto; }
+    svg.schematic .wire { stroke: var(--text); stroke-width: 2; fill: none; }
+    svg.schematic .comp { stroke: var(--accent); stroke-width: 2.4; fill: none; }
+    svg.schematic .node { fill: var(--text); }
+    svg.schematic text { fill: var(--text); font: 13px "Segoe UI", sans-serif; }
+    svg.schematic .lbl-val { fill: var(--accent); font-weight: 700; }
+    svg.schematic .port { fill: var(--muted); font-size: 11px; }
+
+    /* Plot */
+    .plot-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .legend { display: flex; gap: 16px; font-size: 0.82rem; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+    .swatch.mag { background: var(--mag); }
+    .swatch.phase { background: var(--phase); }
+
+    .plot-box { position: relative; }
+    canvas#bode { width: 100%; height: 440px; display: block; touch-action: none; cursor: crosshair; }
+
+    .readout {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      font-size: 0.88rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+    .readout b { color: var(--text); }
+    .readout .pill {
+      background: var(--chip-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 9px;
     }
 
-    a {
-      color: var(--accent);
+    .probe-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      font-size: 0.9rem;
     }
+    .probe-row input { width: 130px; }
 
-    @media (max-width: 760px) {
-      .grid.filters {
-        grid-template-columns: 1fr;
-      }
+    details.ref {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card);
+      padding: 0 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    details.ref > summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 16px 0;
+      list-style: none;
+    }
+    details.ref > summary::-webkit-details-marker { display: none; }
+    details.ref > summary::before { content: "▸ "; color: var(--accent); }
+    details.ref[open] > summary::before { content: "▾ "; }
+    details.ref .body { padding-bottom: 18px; }
+    code, .mono {
+      font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+      background: var(--chip-bg);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+    .formula {
+      display: block;
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin: 8px 0;
+      font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+      font-size: 0.86rem;
+      overflow-x: auto;
+    }
+    .ref table { border-collapse: collapse; width: 100%; font-size: 0.88rem; margin: 8px 0; }
+    .ref th, .ref td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+    .ref th { background: var(--chip-bg); }
+
+    footer {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    a { color: var(--accent); }
+
+    .toast {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--text);
+      color: var(--bg-bottom);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 50;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); border: 0;
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>RC Low-Pass / High-Pass Filter Designer</h1>
-    <p>Use <code>f_c = 1 / (2piRC)</code>. For a first-order RC filter, low-pass and high-pass share the same cutoff-frequency formula.</p>
+    <header class="topbar">
+      <div>
+        <h1>RC Filter Designer</h1>
+        <p class="subtitle">First-order passive low-pass / high-pass design with a live Bode plot, standard-value (E-series) snapping, time-domain metrics, and a shareable link.</p>
+      </div>
+      <button class="iconbtn" id="themeBtn" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">🌙 <span id="themeLabel">Dark</span></button>
+    </header>
 
-    <div class="card">
-      <div class="inline-row">
-        <div>
-          <label for="seriesSelect">Preferred Series</label>
-          <select id="seriesSelect">
-            <option value="E24">E24</option>
-            <option value="E48">E48</option>
-            <option value="E96" selected>E96</option>
-          </select>
+    <!-- Toolbar -->
+    <div class="card toolbar" role="region" aria-label="Filter options">
+      <div class="group">
+        <span class="label">Type</span>
+        <div class="segmented" id="typeSeg" role="group" aria-label="Filter type">
+          <button type="button" data-type="lp" aria-pressed="true">Low-pass</button>
+          <button type="button" data-type="hp" aria-pressed="false">High-pass</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">Series</span>
+        <select id="seriesSelect" aria-label="Preferred E-series">
+          <option value="exact">Exact (no snap)</option>
+          <option value="E12">E12 (±10%)</option>
+          <option value="E24">E24 (±5%)</option>
+          <option value="E48">E48 (±2%)</option>
+          <option value="E96" selected>E96 (±1%)</option>
+        </select>
+      </div>
+      <div class="group" style="flex:1; justify-content:flex-end;">
+        <span class="label">Presets</span>
+        <div class="chips" id="presetChips"></div>
+      </div>
+    </div>
+
+    <!-- Design -->
+    <div class="design">
+      <div class="card">
+        <h2>Components</h2>
+        <p style="margin:-6px 0 14px; font-size:0.85rem;">Type values directly — engineering notation works: <code>4k7</code>, <code>10k</code>, <code>2.2M</code>, <code>100n</code>, <code>4u7</code>, <code>1n</code>. Arrow&nbsp;keys step through the chosen E-series.</p>
+
+        <div class="field">
+          <label for="rInput">Resistance&nbsp;R</label>
+          <div class="value-row">
+            <input id="rInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="1k">
+            <div class="stepper" aria-hidden="true">
+              <button type="button" data-step="r" data-dir="1">▲</button>
+              <button type="button" data-step="r" data-dir="-1">▼</button>
+            </div>
+          </div>
+          <div class="hint" id="rHint"></div>
+        </div>
+
+        <div class="field">
+          <label for="cInput">Capacitance&nbsp;C</label>
+          <div class="value-row">
+            <input id="cInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="100n">
+            <div class="stepper" aria-hidden="true">
+              <button type="button" data-step="c" data-dir="1">▲</button>
+              <button type="button" data-step="c" data-dir="-1">▼</button>
+            </div>
+          </div>
+          <div class="hint" id="cHint"></div>
+        </div>
+
+        <div class="field">
+          <label for="fcInput">Cutoff frequency&nbsp;f<sub>c</sub> (−3&nbsp;dB)</label>
+          <input id="fcInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="">
+          <div class="hint" id="fcHint">Edit f<sub>c</sub> and the chosen component is solved for you.</div>
+        </div>
+
+        <div class="adjust-toggle">
+          <span>When f<sub>c</sub> changes, adjust:</span>
+          <div class="segmented" id="adjustSeg" role="group" aria-label="Which component to solve when fc changes">
+            <button type="button" data-adjust="R" aria-pressed="true">R</button>
+            <button type="button" data-adjust="C" aria-pressed="false">C</button>
+          </div>
+        </div>
+
+        <div class="snap-note" id="snapNote"></div>
+
+        <h3>Key results</h3>
+        <div class="metrics" id="metrics"></div>
+      </div>
+
+      <div class="card schematic-card">
+        <h2 id="schematicTitle">Schematic</h2>
+        <div class="schematic-wrap">
+          <svg class="schematic" id="schematic" viewBox="0 0 360 200" role="img" aria-label="Filter schematic"></svg>
         </div>
       </div>
     </div>
 
+    <!-- Plot -->
     <div class="card">
-      <h2>1) Calculate Cutoff Frequency</h2>
-      <div class="grid filters">
-        <div>
-          <label for="filterType">Filter Type</label>
-          <select id="filterType">
-            <option>Low-pass</option>
-            <option>High-pass</option>
-          </select>
-        </div>
-        <div>
-          <label for="rValue">R (Ohm)</label>
-          <input id="rValue" type="number" min="0" step="any" value="1000">
-        </div>
-        <div>
-          <label for="rUnit">R Unit</label>
-          <select id="rUnit">
-            <option value="1">Ohm</option>
-            <option value="1000">kOhm</option>
-          </select>
-        </div>
-        <div>
-          <label for="cValue">C (Farad)</label>
-          <input id="cValue" type="number" min="0" step="any" value="100">
-        </div>
-        <div>
-          <label for="cUnit">C Unit</label>
-          <select id="cUnit">
-            <option value="1e-6">uF</option>
-            <option value="1e-9">nF</option>
-            <option value="1e-12">pF</option>
-          </select>
+      <div class="plot-head">
+        <h2 style="margin:0;">Frequency response (Bode)</h2>
+        <div class="legend">
+          <span><i class="swatch mag"></i> Magnitude (dB)</span>
+          <span><i class="swatch phase"></i> Phase (°)</span>
         </div>
       </div>
-      <button id="calcFcBtn" type="button">Calculate f_c</button>
-      <div class="result" id="fcResult"></div>
-    </div>
-
-    <div class="card">
-      <h2>2) Solve Component Value From Target f_c</h2>
-      <div class="grid">
-        <div>
-          <label for="solveFor">Solve For</label>
-          <select id="solveFor">
-            <option value="R">R (Ohm)</option>
-            <option value="C">C (Farad)</option>
-          </select>
-        </div>
-        <div>
-          <label for="targetFc">Target f_c (Hz)</label>
-          <input id="targetFc" type="number" min="0" step="any" value="1000">
-        </div>
-        <div>
-          <label for="knownValue">Known Value</label>
-          <input id="knownValue" type="number" min="0" step="any" value="100">
-        </div>
-        <div>
-          <label for="knownUnit">Known Unit</label>
-          <select id="knownUnit"></select>
-        </div>
+      <div class="plot-box">
+        <canvas id="bode" aria-label="Bode plot of magnitude and phase versus frequency"></canvas>
       </div>
-      <button id="solveBtn" type="button">Solve</button>
-      <div class="result" id="solveResult"></div>
+      <div class="readout" id="readout">
+        <span class="pill">Hover the plot to read values. Drag the <b>f<sub>c</sub></b> line to retune.</span>
+      </div>
+      <div class="probe-row">
+        <label for="probeInput">Response at frequency:</label>
+        <input id="probeInput" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. 5k">
+        <span id="probeOut" class="mono"></span>
+      </div>
     </div>
 
-    <p><a href="../index.html">Back to home</a></p>
+    <details class="ref">
+      <summary>Formulas &amp; how this works</summary>
+      <div class="body">
+        <p>For a first-order RC filter the cutoff (−3&nbsp;dB) frequency is the same for low-pass and high-pass:</p>
+        <span class="formula">f_c = 1 / (2&pi;RC)      &tau; = RC = 1 / (2&pi;·f_c)      &omega;_c = 1/&tau;</span>
+
+        <h3>Low-pass (output across C)</h3>
+        <span class="formula">|H(f)| = 1 / &radic;(1 + (f/f_c)²)      |H|_dB = −10·log10(1 + (f/f_c)²)      &phi;(f) = −arctan(f/f_c)</span>
+        <p>At <code>f = f_c</code>: gain = −3.01&nbsp;dB, phase = −45°. Far above f_c the roll-off is −20&nbsp;dB/decade and phase → −90°.</p>
+
+        <h3>High-pass (output across R)</h3>
+        <span class="formula">|H(f)| = 1 / &radic;(1 + (f_c/f)²)      |H|_dB = −10·log10(1 + (f_c/f)²)      &phi;(f) = +arctan(f_c/f)</span>
+        <p>At <code>f = f_c</code>: gain = −3.01&nbsp;dB, phase = +45°. Far below f_c the slope is +20&nbsp;dB/decade and phase → +90°.</p>
+
+        <h3>Time domain</h3>
+        <span class="formula">Step (LP): v(t) = V·(1 − e^(−t/&tau;))      Step (HP): v(t) = V·e^(−t/&tau;)      Rise time (10–90%): t_r = &tau;·ln 9 ≈ 0.35/f_c</span>
+
+        <h3>Group delay</h3>
+        <span class="formula">&tau;_g(&omega;) = RC / (1 + (&omega;RC)²)      &tau;_g(0)=RC,  &tau;_g(&omega;_c)=&tau;/2</span>
+
+        <h3>Useful checkpoints (low-pass attenuation)</h3>
+        <table>
+          <tr><th>Frequency</th><th>Attenuation</th></tr>
+          <tr><td>f_c</td><td>−3.01 dB</td></tr>
+          <tr><td>2·f_c</td><td>−6.99 dB</td></tr>
+          <tr><td>10·f_c</td><td>−20.04 dB</td></tr>
+          <tr><td>100·f_c</td><td>−40.0 dB</td></tr>
+        </table>
+        <p style="font-size:0.82rem;">Note: this models the ideal RC stage. A real circuit's response is shifted by source impedance and load — buffer the output (or drive from a low-impedance source) for the math to hold.</p>
+      </div>
+    </details>
+
+    <footer>
+      <span><a href="../index.html">← Back to home</a></span>
+      <button class="iconbtn" id="shareBtn" type="button">🔗 Copy share link</button>
+    </footer>
   </div>
 
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
   <script>
+  "use strict";
+  (function () {
     const TWO_PI = 2 * Math.PI;
-    const E96_BASE = [
-      100, 102, 105, 107, 110, 113, 115, 118, 121, 124, 127, 130,
-      133, 137, 140, 143, 147, 150, 154, 158, 162, 165, 169, 174,
-      178, 182, 187, 191, 196, 200, 205, 210, 215, 221, 226, 232,
-      237, 243, 249, 255, 261, 267, 274, 280, 287, 294, 301, 309,
-      316, 324, 332, 340, 348, 357, 365, 374, 383, 392, 402, 412,
-      422, 432, 442, 453, 464, 475, 487, 499, 511, 523, 536, 549,
-      562, 576, 590, 604, 619, 634, 649, 665, 681, 698, 715, 732,
-      750, 768, 787, 806, 825, 845, 866, 887, 909, 931, 953, 976
-    ];
-    const E48_BASE = [
-      100, 105, 110, 115, 121, 127, 133, 140, 147, 154, 162, 169,
-      178, 187, 196, 205, 215, 226, 237, 249, 261, 274, 287, 301,
-      316, 332, 348, 365, 383, 402, 422, 442, 464, 487, 511, 536,
-      562, 590, 619, 649, 681, 715, 750, 787, 825, 866, 909, 953
-    ];
-    const E24_BASE = [
-      100, 110, 120, 130, 150, 160, 180, 200, 220, 240, 270, 300,
-      330, 360, 390, 430, 470, 510, 560, 620, 680, 750, 820, 910
-    ];
-    const SERIES_COLORS = {
-      E96: "#7e22ce",
-      E48: "#2f5d62",
-      E24: "#111827"
+
+    /* ---------- E-series tables ---------- */
+    const SERIES = {
+      E12: [100,120,150,180,220,270,330,390,470,560,680,820],
+      E24: [100,110,120,130,150,160,180,200,220,240,270,300,330,360,390,430,470,510,560,620,680,750,820,910],
+      E48: [100,105,110,115,121,127,133,140,147,154,162,169,178,187,196,205,215,226,237,249,261,274,287,301,
+            316,332,348,365,383,402,422,442,464,487,511,536,562,590,619,649,681,715,750,787,825,866,909,953],
+      E96: [100,102,105,107,110,113,115,118,121,124,127,130,133,137,140,143,147,150,154,158,162,165,169,174,
+            178,182,187,191,196,200,205,210,215,221,226,232,237,243,249,255,261,267,274,280,287,294,301,309,
+            316,324,332,340,348,357,365,374,383,392,402,412,422,432,442,453,464,475,487,499,511,523,536,549,
+            562,576,590,604,619,634,649,665,681,698,715,732,750,768,787,806,825,845,866,887,909,931,953,976]
     };
-    let currentSeries = "E96";
 
-    function formatNumber(value) {
-      if (!Number.isFinite(value)) return "Invalid";
-      if (value === 0) return "0";
-      const abs = Math.abs(value);
-      if (abs >= 1000 || abs < 0.001) return value.toExponential(4);
-      return value.toFixed(6).replace(/\.?0+$/, "");
+    /* ---------- State ---------- */
+    const state = {
+      type: "lp",        // lp | hp
+      series: "E96",     // exact | E12 | E24 | E48 | E96
+      R: 1000,           // ohms
+      C: 100e-9,         // farads
+      adjust: "R",       // which component to solve when fc changes
+      probe: null        // probe frequency in Hz, or null
+    };
+
+    /* ---------- Number parsing / formatting ---------- */
+    function parseEng(raw, kind) {
+      // kind: "R" (ohms) or "C" (farads) or "F" (frequency, Hz)
+      if (raw == null) return NaN;
+      let s = String(raw).trim().toLowerCase().replace(/\s+/g, "").replace(/Ω|ω/g, "").replace(/µ/g, "u");
+      if (!s) return NaN;
+      // strip a trailing unit word for R/F (ohm, ohms, hz, f, farad)
+      s = s.replace(/(ohms?|farads?|hz|f)$/i, "");
+      if (!s) return NaN;
+
+      let mults;
+      if (kind === "C") {
+        mults = { p: 1e-12, n: 1e-9, u: 1e-6, m: 1e-3, "": 1 };
+      } else if (kind === "F") {
+        mults = { k: 1e3, m: 1e6, meg: 1e6, g: 1e9, "": 1, r: 1 };
+      } else { // R
+        mults = { r: 1, k: 1e3, m: 1e6, meg: 1e6, g: 1e9, "": 1 };
+      }
+
+      // RKM infix code, e.g. 4k7, 4u7, 2n2, 1r5, R47
+      const infix = s.match(/^(\d*)(p|n|u|m|r|k|g)(\d+)$/);
+      if (infix) {
+        const mult = mults[infix[2]];
+        if (mult == null) return NaN;
+        const num = parseFloat((infix[1] || "0") + "." + infix[3]);
+        return num * mult;
+      }
+      // number followed by optional suffix
+      const m = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(meg|p|n|u|m|r|k|g)?$/);
+      if (!m) return NaN;
+      const num = parseFloat(m[1]);
+      if (!isFinite(num)) return NaN;
+      const mult = mults[m[2] || ""];
+      if (mult == null) return NaN;
+      return num * mult;
     }
 
-    function toPositiveNumber(raw) {
-      const n = Number(raw);
-      return Number.isFinite(n) && n > 0 ? n : null;
+    function fmtSI(value, unit, sigfigs) {
+      sigfigs = sigfigs || 4;
+      if (!isFinite(value) || value <= 0) return "—";
+      const prefixes = [
+        { p: "G", e: 1e9 }, { p: "M", e: 1e6 }, { p: "k", e: 1e3 },
+        { p: "", e: 1 }, { p: "m", e: 1e-3 }, { p: "µ", e: 1e-6 },
+        { p: "n", e: 1e-9 }, { p: "p", e: 1e-12 }
+      ];
+      let chosen = prefixes[prefixes.length - 1];
+      for (const pr of prefixes) {
+        if (value >= pr.e) { chosen = pr; break; }
+      }
+      const scaled = value / chosen.e;
+      return trimNum(scaled, sigfigs) + " " + chosen.p + unit;
     }
 
-    function toBaseR(value, unitScale) {
-      return value * Number(unitScale);
+    function trimNum(v, sig) {
+      if (!isFinite(v)) return "—";
+      let s = v.toPrecision(sig);
+      if (s.indexOf("e") === -1 && s.indexOf(".") !== -1) {
+        s = s.replace(/\.?0+$/, "");
+      }
+      return s;
     }
 
-    function toBaseC(value, unitScale) {
-      return value * Number(unitScale);
+    function fmtR(ohms) { return fmtSI(ohms, "Ω"); }
+    function fmtC(farads) { return fmtSI(farads, "F"); }
+    function fmtHz(hz) { return fmtSI(hz, "Hz"); }
+    function fmtSec(s) {
+      if (!isFinite(s) || s <= 0) return "—";
+      return fmtSI(s, "s");
     }
 
-    function getSeriesBase() {
-      const series = currentSeries;
-      if (series === "E24") return E24_BASE;
-      if (series === "E48") return E48_BASE;
-      return E96_BASE;
-    }
+    /* ---------- E-series snapping ---------- */
+    function seriesBase() { return SERIES[state.series] || SERIES.E96; }
 
-    function getClosestSeriesIndex(mantissa, baseArray) {
-      let bestIndex = 0;
-      let bestDiff = Infinity;
-      for (let i = 0; i < baseArray.length; i += 1) {
-        const diff = Math.abs(baseArray[i] - mantissa);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestIndex = i;
+    function nearestStd(value) {
+      if (state.series === "exact" || !isFinite(value) || value <= 0) return value;
+      const base = seriesBase();
+      const decade = Math.floor(Math.log10(value)) - 2;
+      const scale = Math.pow(10, decade);
+      const mant = value / scale;
+      // mantissa may be just outside [100,1000); normalize across decade boundary
+      let best = base[0], bestDiffRatio = Infinity, bestScale = scale;
+      for (const candDecade of [decade - 1, decade, decade + 1]) {
+        const sc = Math.pow(10, candDecade);
+        for (const b of base) {
+          const cand = b * sc;
+          const ratio = Math.abs(Math.log(cand / value));
+          if (ratio < bestDiffRatio) { bestDiffRatio = ratio; best = b; bestScale = sc; }
         }
       }
-      return bestIndex;
+      return Number((best * bestScale).toPrecision(6));
     }
 
-    function nextE96Value(value, direction) {
-      const baseArray = getSeriesBase();
+    function stepStd(value, dir) {
+      const base = seriesBase();
       const v = Number(value);
-      if (!Number.isFinite(v) || v <= 0) {
-        return direction > 0 ? baseArray[0] : baseArray[baseArray.length - 1] * 0.1;
+      if (!isFinite(v) || v <= 0) return dir > 0 ? base[0] : base[0];
+      if (state.series === "exact") {
+        // step by ~1-2-5 friendly factor: multiply/divide by 10^(1/24)
+        return Number((v * Math.pow(10, dir / 24)).toPrecision(4));
       }
-
-      const decadePower = Math.floor(Math.log10(v)) - 2;
-      const decadeScale = Math.pow(10, decadePower);
-      const mantissa = v / decadeScale;
-      const closestIndex = getClosestSeriesIndex(mantissa, baseArray);
-      const closestMantissa = baseArray[closestIndex];
-      const tol = closestMantissa * 1e-9;
-      const isOnSeries = Math.abs(mantissa - closestMantissa) <= tol;
-      let nextIndex = closestIndex;
-      let nextDecadePower = decadePower;
-
-      if (direction > 0) {
-        if (isOnSeries) {
-          nextIndex += 1;
-        } else if (mantissa > closestMantissa) {
-          nextIndex += 1;
-        }
-        if (nextIndex >= baseArray.length) {
-          nextIndex = 0;
-          nextDecadePower += 1;
-        }
+      const decade = Math.floor(Math.log10(v)) - 2;
+      const scale = Math.pow(10, decade);
+      const mant = v / scale;
+      // find index of closest base value
+      let idx = 0, bd = Infinity;
+      for (let i = 0; i < base.length; i++) {
+        const d = Math.abs(base[i] - mant);
+        if (d < bd) { bd = d; idx = i; }
+      }
+      const onSeries = Math.abs(base[idx] - mant) <= base[idx] * 1e-6;
+      let ni = idx, nd = decade;
+      if (dir > 0) {
+        if (onSeries || mant > base[idx]) ni++;
+        if (ni >= base.length) { ni = 0; nd++; }
       } else {
-        if (isOnSeries) {
-          nextIndex -= 1;
-        } else if (mantissa < closestMantissa) {
-          nextIndex -= 1;
-        }
-        if (nextIndex < 0) {
-          nextIndex = baseArray.length - 1;
-          nextDecadePower -= 1;
-        }
+        if (onSeries || mant < base[idx]) ni--;
+        if (ni < 0) { ni = base.length - 1; nd--; }
       }
-
-      const nextValue = baseArray[nextIndex] * Math.pow(10, nextDecadePower);
-      return Number(nextValue.toPrecision(6));
+      return Number((base[ni] * Math.pow(10, nd)).toPrecision(6));
     }
 
-    function nearestE96Value(value) {
-      const baseArray = getSeriesBase();
-      const v = Number(value);
-      if (!Number.isFinite(v) || v <= 0) {
-        return baseArray[0];
-      }
+    /* ---------- Filter math ---------- */
+    function fc() { return 1 / (TWO_PI * state.R * state.C); }
 
-      const decadePower = Math.floor(Math.log10(v)) - 2;
-      const decadeScale = Math.pow(10, decadePower);
-      const mantissa = v / decadeScale;
-      const idx = getClosestSeriesIndex(mantissa, baseArray);
-      const nearest = baseArray[idx] * decadeScale;
-      return Number(nearest.toPrecision(6));
+    function magDb(f, fcv) {
+      const r = f / fcv;
+      if (state.type === "lp") return -10 * Math.log10(1 + r * r);
+      // hp
+      if (f <= 0) return -Infinity;
+      return -10 * Math.log10(1 + 1 / (r * r));
+    }
+    function phaseDeg(f, fcv) {
+      const r = f / fcv;
+      if (state.type === "lp") return -Math.atan(r) * 180 / Math.PI;
+      return Math.atan(1 / r) * 180 / Math.PI; // hp
+    }
+    function groupDelay(f) {
+      const w = TWO_PI * f;
+      const t = state.R * state.C;
+      return t / (1 + (w * t) * (w * t));
     }
 
-    function attachE96Stepper(inputId, onStep) {
-      const input = document.getElementById(inputId);
-      let lastValue = Number(input.value);
+    /* ---------- DOM refs ---------- */
+    const $ = (id) => document.getElementById(id);
+    const rInput = $("rInput"), cInput = $("cInput"), fcInput = $("fcInput");
+    const rHint = $("rHint"), cHint = $("cHint"), fcHint = $("fcHint");
+    const snapNote = $("snapNote"), metricsEl = $("metrics");
+    const canvas = $("bode"), readoutEl = $("readout");
+    const probeInput = $("probeInput"), probeOut = $("probeOut");
 
-      function setAndRecalc(value) {
-        input.value = String(value);
-        lastValue = value;
-        onStep();
-      }
-
-      input.addEventListener("keydown", function (event) {
-        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-          return;
-        }
-        event.preventDefault();
-        const dir = event.key === "ArrowUp" ? 1 : -1;
-        const current = Number(input.value);
-        const base = Number.isFinite(current) && current > 0 ? current : lastValue;
-        setAndRecalc(nextE96Value(base, dir));
-      });
-
-      function applyNonKeyboardStep() {
-        const raw = Number(input.value);
-        if (!Number.isFinite(raw) || raw <= 0) {
-          return;
-        }
-
-        if (!Number.isFinite(lastValue) || lastValue <= 0) {
-          setAndRecalc(nearestE96Value(raw));
-          return;
-        }
-
-        if (raw > lastValue) {
-          setAndRecalc(nextE96Value(lastValue, 1));
-          return;
-        }
-        if (raw < lastValue) {
-          setAndRecalc(nextE96Value(lastValue, -1));
-          return;
-        }
-
-        setAndRecalc(nearestE96Value(raw));
-      }
-
-      input.addEventListener("input", function (event) {
-        const inputType = event.inputType || "";
-        const isManualTyping =
-          inputType.indexOf("insertText") === 0 ||
-          inputType.indexOf("deleteContent") === 0 ||
-          inputType === "insertFromPaste" ||
-          inputType === "insertCompositionText";
-
-        if (isManualTyping) {
-          const raw = Number(input.value);
-          if (Number.isFinite(raw) && raw > 0) {
-            lastValue = raw;
-          }
-          onStep();
-          return;
-        }
-        applyNonKeyboardStep();
-      });
-
-      input.addEventListener("change", function () {
-        const raw = Number(input.value);
-        if (Number.isFinite(raw) && raw > 0) {
-          lastValue = raw;
-        }
-        onStep();
-      });
-
-      return {
-        snapToCurrentSeries: function () {
-          setAndRecalc(nearestE96Value(input.value));
-        },
-        setColor: function (color) {
-          input.style.color = color;
-        }
-      };
+    /* ---------- Render: inputs ---------- */
+    let editing = null; // which field user is actively typing in
+    function syncInputs() {
+      if (editing !== "r") { rInput.value = fmtForInput(state.R, "R"); }
+      if (editing !== "c") { cInput.value = fmtForInput(state.C, "C"); }
+      if (editing !== "fc") { fcInput.value = fmtForInput(fc(), "F"); }
+      rHint.textContent = state.series === "exact" ? "= " + fmtR(state.R) : "= " + fmtR(state.R) + "  ·  " + state.series;
+      cHint.textContent = state.series === "exact" ? "= " + fmtC(state.C) : "= " + fmtC(state.C) + "  ·  " + state.series;
     }
 
-    function getSeriesColor() {
-      const series = currentSeries;
-      return SERIES_COLORS[series] || SERIES_COLORS.E24;
+    function fmtForInput(value, kind) {
+      // compact engineering string without space, for editable fields
+      if (!isFinite(value) || value <= 0) return "";
+      const s = fmtSI(value, "", 5).replace(/\s/g, "");
+      return s;
     }
 
-    function applySeriesColorToInputs(color) {
-      document.getElementById("rValue").style.color = color;
-      document.getElementById("cValue").style.color = color;
-      document.getElementById("knownValue").style.color = color;
-    }
-
-    function setKnownUnitOptions() {
-      const solveFor = document.getElementById("solveFor").value;
-      const knownUnit = document.getElementById("knownUnit");
-      knownUnit.innerHTML = "";
-
-      if (solveFor === "R") {
-        knownUnit.innerHTML = [
-          '<option value="1e-6">uF</option>',
-          '<option value="1e-9">nF</option>',
-          '<option value="1e-12">pF</option>'
-        ].join("");
-      } else {
-        knownUnit.innerHTML = [
-          '<option value="1">Ohm</option>',
-          '<option value="1000">kOhm</option>'
-        ].join("");
-      }
-    }
-
-    function calculateFc() {
-      const filterType = document.getElementById("filterType").value;
-      const rRaw = toPositiveNumber(document.getElementById("rValue").value);
-      const cRaw = toPositiveNumber(document.getElementById("cValue").value);
-      const rUnit = document.getElementById("rUnit").value;
-      const cUnit = document.getElementById("cUnit").value;
-      const out = document.getElementById("fcResult");
-
-      if (!rRaw || !cRaw) {
-        out.textContent = "Enter positive values for both R and C.";
+    /* ---------- Render: snap note ---------- */
+    function renderSnapNote() {
+      if (state.series === "exact") {
+        snapNote.innerHTML = "Using <b>exact</b> values — switch to an E-series to snap R and C to real, purchasable parts.";
         return;
       }
-
-      const r = toBaseR(rRaw, rUnit);
-      const c = toBaseC(cRaw, cUnit);
-      const fc = 1 / (TWO_PI * r * c);
-      out.textContent = filterType + " cutoff frequency f_c = " + formatNumber(fc) + " Hz";
+      const targetFcVal = parseEng(fcInput.value, "F");
+      // The "adjust" component was snapped; show resulting error vs the f_c the user is targeting
+      const actual = fc();
+      let html = "Snapped to <b>" + state.series + "</b>: R = <b>" + fmtR(state.R) + "</b>, C = <b>" + fmtC(state.C) + "</b>. ";
+      html += "Realized f<sub>c</sub> = <b>" + fmtHz(actual) + "</b>";
+      if (isFinite(targetFcVal) && targetFcVal > 0) {
+        const errPct = (actual - targetFcVal) / targetFcVal * 100;
+        const cls = Math.abs(errPct) < 1 ? "ok" : (Math.abs(errPct) > 8 ? "err" : "");
+        html += " (<span class='" + cls + "'>" + (errPct >= 0 ? "+" : "") + errPct.toFixed(1) + "%</span> vs target " + fmtHz(targetFcVal) + ")";
+      }
+      html += ".";
+      snapNote.innerHTML = html;
     }
 
-    function solveFromTarget() {
-      const solveFor = document.getElementById("solveFor").value;
-      const fc = toPositiveNumber(document.getElementById("targetFc").value);
-      const knownRaw = toPositiveNumber(document.getElementById("knownValue").value);
-      const knownUnit = document.getElementById("knownUnit").value;
-      const out = document.getElementById("solveResult");
+    /* ---------- Render: metrics ---------- */
+    function renderMetrics() {
+      const fcv = fc();
+      const tau = state.R * state.C;
+      const tr = tau * Math.log(9);
+      const wc = 1 / tau;
+      const items = [
+        { k: "Cutoff f<sub>c</sub>", v: fmtHz(fcv) },
+        { k: "&omega;<sub>c</sub>", v: trimNum(wc, 4), u: "rad/s" },
+        { k: "Time const &tau;", v: fmtSec(tau) },
+        { k: "Rise (10–90%)", v: fmtSec(tr) },
+        { k: "Group delay @ DC", v: fmtSec(groupDelay(0)) },
+        { k: state.type === "lp" ? "Atten. @ 10·f_c" : "Atten. @ f_c/10",
+          v: (state.type === "lp" ? magDb(10 * fcv, fcv) : magDb(fcv / 10, fcv)).toFixed(1), u: "dB" }
+      ];
+      metricsEl.innerHTML = items.map(i =>
+        '<div class="metric"><span class="k">' + i.k + '</span><span class="v">' + i.v +
+        (i.u ? ' <small>' + i.u + '</small>' : '') + '</span></div>'
+      ).join("");
+    }
 
-      if (!fc || !knownRaw) {
-        out.textContent = "Enter positive values for target f_c and known value.";
+    /* ---------- Render: schematic ---------- */
+    function renderSchematic() {
+      const svg = $("schematic");
+      const rTxt = fmtR(state.R), cTxt = fmtC(state.C);
+      $("schematicTitle").textContent = (state.type === "lp" ? "Low-pass" : "High-pass") + " schematic";
+      // Coordinates: input left, output right, ground bottom
+      let body;
+      if (state.type === "lp") {
+        // series R, shunt C
+        body = `
+          <text class="port" x="6" y="56" text-anchor="start">IN</text>
+          <text class="port" x="354" y="56" text-anchor="end">OUT</text>
+          <line class="wire" x1="24" y1="60" x2="120" y2="60"/>
+          <!-- resistor -->
+          <rect class="comp" x="120" y="48" width="70" height="24" rx="3"/>
+          <text class="lbl-val" x="155" y="40" text-anchor="middle">R = ${rTxt}</text>
+          <line class="wire" x1="190" y1="60" x2="300" y2="60"/>
+          <circle class="node" cx="252" cy="60" r="4"/>
+          <line class="wire" x1="300" y1="60" x2="336" y2="60"/>
+          <!-- capacitor to ground -->
+          <line class="wire" x1="252" y1="60" x2="252" y2="104"/>
+          <line class="comp" x1="232" y1="104" x2="272" y2="104"/>
+          <line class="comp" x1="232" y1="116" x2="272" y2="116"/>
+          <text class="lbl-val" x="284" y="114" text-anchor="start">C = ${cTxt}</text>
+          <line class="wire" x1="252" y1="116" x2="252" y2="150"/>
+          <!-- ground -->
+          <line class="wire" x1="24" y1="60" x2="24" y2="150"/>
+          <line class="wire" x1="336" y1="60" x2="336" y2="150"/>
+          <line class="wire" x1="24" y1="150" x2="336" y2="150"/>
+          <line class="wire" x1="232" y1="150" x2="272" y2="150"/>
+          <line class="wire" x1="240" y1="156" x2="264" y2="156"/>
+          <line class="wire" x1="246" y1="162" x2="258" y2="162"/>
+        `;
+      } else {
+        // series C, shunt R
+        body = `
+          <text class="port" x="6" y="56" text-anchor="start">IN</text>
+          <text class="port" x="354" y="56" text-anchor="end">OUT</text>
+          <line class="wire" x1="24" y1="60" x2="118" y2="60"/>
+          <!-- capacitor in series -->
+          <line class="comp" x1="142" y1="44" x2="142" y2="76"/>
+          <line class="comp" x1="154" y1="44" x2="154" y2="76"/>
+          <text class="lbl-val" x="148" y="34" text-anchor="middle">C = ${cTxt}</text>
+          <line class="wire" x1="118" y1="60" x2="142" y2="60"/>
+          <line class="wire" x1="154" y1="60" x2="300" y2="60"/>
+          <circle class="node" cx="252" cy="60" r="4"/>
+          <line class="wire" x1="300" y1="60" x2="336" y2="60"/>
+          <!-- resistor to ground -->
+          <line class="wire" x1="252" y1="60" x2="252" y2="92"/>
+          <rect class="comp" x="240" y="92" width="24" height="58" rx="3"/>
+          <text class="lbl-val" x="284" y="125" text-anchor="start">R = ${rTxt}</text>
+          <!-- ground rail -->
+          <line class="wire" x1="24" y1="60" x2="24" y2="172"/>
+          <line class="wire" x1="336" y1="60" x2="336" y2="172"/>
+          <line class="wire" x1="24" y1="172" x2="336" y2="172"/>
+          <line class="wire" x1="252" y1="150" x2="252" y2="172"/>
+        `;
+      }
+      svg.innerHTML = body;
+    }
+
+    /* ---------- Plot ---------- */
+    const bode = { fmin: 0, fmax: 0, geo: null };
+    let dpr = 1;
+
+    function freqRange() {
+      const fcv = fc();
+      const lo = Math.pow(10, Math.floor(Math.log10(fcv)) - 3);
+      const hi = Math.pow(10, Math.ceil(Math.log10(fcv)) + 3);
+      return { fmin: lo, fmax: hi };
+    }
+
+    function drawBode(hoverF) {
+      const ctx = canvas.getContext("2d");
+      const cssW = canvas.clientWidth;
+      const cssH = canvas.clientHeight;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      const css = getComputedStyle(document.documentElement);
+      const C = (n) => css.getPropertyValue(n).trim();
+      const colText = C("--text"), colMuted = C("--muted"), colGrid = C("--grid"),
+            colGridS = C("--grid-strong"), colMag = C("--mag"), colPhase = C("--phase"),
+            colAsym = C("--asymptote"), colPlotBg = C("--plot-bg"), colAccent = C("--accent");
+
+      const padL = 50, padR = 46, padTop = 14, padBot = 26, gap = 30;
+      const W = cssW, H = cssH;
+      const plotL = padL, plotR = W - padR;
+      const usable = H - padTop - padBot - gap;
+      const magH = usable * 0.58, phH = usable * 0.42;
+      const magTop = padTop, magBot = magTop + magH;
+      const phTop = magBot + gap, phBot = phTop + phH;
+
+      const { fmin, fmax } = freqRange();
+      bode.fmin = fmin; bode.fmax = fmax;
+      const lminF = Math.log10(fmin), lmaxF = Math.log10(fmax);
+      const dBmax = 5, dBmin = -65;
+      const phMax = 95, phMin = -95;
+
+      const xOf = (f) => plotL + (Math.log10(f) - lminF) / (lmaxF - lminF) * (plotR - plotL);
+      const fOfX = (x) => Math.pow(10, lminF + (x - plotL) / (plotR - plotL) * (lmaxF - lminF));
+      const yMag = (db) => magTop + (dBmax - db) / (dBmax - dBmin) * magH;
+      const yPh = (p) => phTop + (phMax - p) / (phMax - phMin) * phH;
+
+      bode.geo = { plotL, plotR, magTop, magBot, phTop, phBot, xOf, fOfX };
+
+      // panel backgrounds
+      ctx.fillStyle = colPlotBg;
+      ctx.fillRect(plotL, magTop, plotR - plotL, magH);
+      ctx.fillRect(plotL, phTop, plotR - plotL, phH);
+
+      ctx.font = "11px 'Segoe UI', sans-serif";
+      ctx.textBaseline = "middle";
+
+      // vertical decade gridlines (adaptive labeling so they don't collide)
+      const startDec = Math.ceil(lminF), endDec = Math.floor(lmaxF);
+      const pxPerDecade = (plotR - plotL) / (lmaxF - lminF);
+      const labelStride = pxPerDecade >= 60 ? 1 : (pxPerDecade >= 34 ? 2 : 3);
+      ctx.lineWidth = 1;
+      for (let d = startDec; d <= endDec; d++) {
+        const x = xOf(Math.pow(10, d));
+        ctx.strokeStyle = colGrid;
+        ctx.beginPath(); ctx.moveTo(x, magTop); ctx.lineTo(x, magBot); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, phTop); ctx.lineTo(x, phBot); ctx.stroke();
+        if (((d - startDec) % labelStride) === 0) {
+          ctx.fillStyle = colMuted;
+          ctx.textAlign = "center";
+          ctx.fillText(fmtHz(Math.pow(10, d)), x, phBot + 13);
+        }
+      }
+
+      // magnitude horizontal gridlines
+      ctx.textAlign = "right";
+      for (let db = 0; db >= -60; db -= 20) {
+        const y = yMag(db);
+        ctx.strokeStyle = db === 0 ? colGridS : colGrid;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+        ctx.fillStyle = colMuted;
+        ctx.fillText(db + " dB", plotL - 7, y);
+      }
+      // -3 dB reference
+      const y3 = yMag(-3.0103);
+      ctx.strokeStyle = colAccent;
+      ctx.setLineDash([4, 4]);
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath(); ctx.moveTo(plotL, y3); ctx.lineTo(plotR, y3); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+
+      // phase horizontal gridlines (right-axis labels)
+      ctx.textAlign = "left";
+      for (const p of [90, 45, 0, -45, -90]) {
+        const y = yPh(p);
+        ctx.strokeStyle = p === 0 ? colGridS : colGrid;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+        ctx.fillStyle = colMuted;
+        ctx.fillText(p + "°", plotR + 6, y);
+      }
+
+      const fcv = fc();
+
+      // asymptote (magnitude)
+      ctx.strokeStyle = colAsym;
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      if (state.type === "lp") {
+        ctx.moveTo(xOf(fmin), yMag(0));
+        ctx.lineTo(xOf(fcv), yMag(0));
+        const dbAtMax = -20 * (Math.log10(fmax) - Math.log10(fcv));
+        ctx.lineTo(xOf(fmax), yMag(dbAtMax));
+      } else {
+        const dbAtMin = -20 * (Math.log10(fcv) - Math.log10(fmin));
+        ctx.moveTo(xOf(fmin), yMag(dbAtMin));
+        ctx.lineTo(xOf(fcv), yMag(0));
+        ctx.lineTo(xOf(fmax), yMag(0));
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // magnitude curve
+      const N = 480;
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = colMag;
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const f = Math.pow(10, lminF + (i / N) * (lmaxF - lminF));
+        let db = magDb(f, fcv);
+        if (db < dBmin) db = dBmin;
+        const x = xOf(f), y = yMag(db);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // phase curve
+      ctx.strokeStyle = colPhase;
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const f = Math.pow(10, lminF + (i / N) * (lmaxF - lminF));
+        const p = phaseDeg(f, fcv);
+        const x = xOf(f), y = yPh(p);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // fc marker line (draggable)
+      const xfc = xOf(fcv);
+      ctx.strokeStyle = colAccent;
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(xfc, magTop); ctx.lineTo(xfc, phBot); ctx.stroke();
+      ctx.setLineDash([]);
+      // handle
+      ctx.fillStyle = colAccent;
+      ctx.beginPath();
+      ctx.moveTo(xfc, magTop - 2);
+      ctx.lineTo(xfc - 5, magTop - 11);
+      ctx.lineTo(xfc + 5, magTop - 11);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = colAccent;
+      ctx.textAlign = "center";
+      ctx.font = "bold 11px 'Segoe UI', sans-serif";
+      const fcLabel = "f_c " + fmtHz(fcv);
+      const lblX = Math.min(Math.max(xfc, plotL + 30), plotR - 30);
+      ctx.fillText(fcLabel, lblX, magTop - 16 < 6 ? magTop + 10 : magTop - 16);
+      // dots at fc on both curves
+      ctx.fillStyle = colMag;
+      ctx.beginPath(); ctx.arc(xfc, yMag(-3.0103), 3.2, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = colPhase;
+      ctx.beginPath(); ctx.arc(xfc, yPh(state.type === "lp" ? -45 : 45), 3.2, 0, TWO_PI); ctx.fill();
+
+      // probe marker
+      if (state.probe && state.probe >= fmin && state.probe <= fmax) {
+        const xp = xOf(state.probe);
+        ctx.strokeStyle = colMuted;
+        ctx.setLineDash([1, 3]);
+        ctx.beginPath(); ctx.moveTo(xp, magTop); ctx.lineTo(xp, phBot); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // hover crosshair + dots
+      if (hoverF && hoverF >= fmin && hoverF <= fmax) {
+        const xh = xOf(hoverF);
+        ctx.strokeStyle = colText;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xh, magTop); ctx.lineTo(xh, phBot); ctx.stroke();
+        ctx.globalAlpha = 1;
+        let dbh = magDb(hoverF, fcv); if (dbh < dBmin) dbh = dBmin;
+        ctx.fillStyle = colMag;
+        ctx.beginPath(); ctx.arc(xh, yMag(dbh), 3.5, 0, TWO_PI); ctx.fill();
+        ctx.fillStyle = colPhase;
+        ctx.beginPath(); ctx.arc(xh, yPh(phaseDeg(hoverF, fcv)), 3.5, 0, TWO_PI); ctx.fill();
+      }
+
+      // axis titles
+      ctx.fillStyle = colMuted;
+      ctx.save();
+      ctx.translate(13, (magTop + magBot) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "center";
+      ctx.font = "11px 'Segoe UI', sans-serif";
+      ctx.fillText("Gain (dB)", 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(W - 9, (phTop + phBot) / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.textAlign = "center";
+      ctx.fillText("Phase (°)", 0, 0);
+      ctx.restore();
+    }
+
+    /* ---------- Readout ---------- */
+    function setReadout(f) {
+      const fcv = fc();
+      if (!f) {
+        readoutEl.innerHTML = '<span class="pill">Hover the plot to read values. Drag the <b>f<sub>c</sub></b> line to retune.</span>';
         return;
       }
+      const db = magDb(f, fcv);
+      const ph = phaseDeg(f, fcv);
+      const lin = Math.pow(10, db / 20);
+      readoutEl.innerHTML =
+        '<span class="pill">f = <b>' + fmtHz(f) + '</b></span>' +
+        '<span class="pill">gain = <b>' + db.toFixed(2) + ' dB</b> (×' + trimNum(lin, 3) + ')</span>' +
+        '<span class="pill">phase = <b>' + (ph >= 0 ? "+" : "") + ph.toFixed(1) + '°</b></span>' +
+        '<span class="pill">group delay = <b>' + fmtSec(groupDelay(f)) + '</b></span>';
+    }
 
-      if (solveFor === "R") {
-        const known = toBaseC(knownRaw, knownUnit);
-        const r = 1 / (TWO_PI * fc * known);
-        out.textContent = "Required R = " + formatNumber(r) + " Ohm";
-      } else {
-        const known = toBaseR(knownRaw, knownUnit);
-        const c = 1 / (TWO_PI * fc * known);
-        out.textContent = "Required C = " + formatNumber(c) + " F";
+    /* ---------- Probe ---------- */
+    function updateProbe() {
+      const f = parseEng(probeInput.value, "F");
+      if (!isFinite(f) || f <= 0) {
+        state.probe = null;
+        probeOut.textContent = "";
+        drawBode();
+        return;
       }
+      state.probe = f;
+      const fcv = fc();
+      const db = magDb(f, fcv);
+      const ph = phaseDeg(f, fcv);
+      probeOut.innerHTML = "→ " + db.toFixed(2) + " dB, " + (ph >= 0 ? "+" : "") + ph.toFixed(1) + "° (×" + trimNum(Math.pow(10, db / 20), 3) + ")";
+      drawBode();
     }
 
-    document.getElementById("solveFor").addEventListener("change", setKnownUnitOptions);
-    document.getElementById("calcFcBtn").addEventListener("click", calculateFc);
-    document.getElementById("solveBtn").addEventListener("click", solveFromTarget);
-    const rStepper = attachE96Stepper("rValue", calculateFc);
-    const cStepper = attachE96Stepper("cValue", calculateFc);
-    const knownStepper = attachE96Stepper("knownValue", solveFromTarget);
-
-    function applySeriesSelection() {
-      const seriesSelect = document.getElementById("seriesSelect");
-      const rawSeries = seriesSelect.value;
-      currentSeries = rawSeries === "E24" || rawSeries === "E48" || rawSeries === "E96" ? rawSeries : "E96";
-      const color = getSeriesColor();
-      rStepper.setColor(color);
-      cStepper.setColor(color);
-      knownStepper.setColor(color);
-      rStepper.snapToCurrentSeries();
-      cStepper.snapToCurrentSeries();
-      knownStepper.snapToCurrentSeries();
+    /* ---------- Full re-render ---------- */
+    function renderAll() {
+      syncInputs();
+      renderSnapNote();
+      renderMetrics();
+      renderSchematic();
+      drawBode();
+      if (state.probe) updateProbe();
+      writeUrl();
     }
 
-    document.getElementById("seriesSelect").addEventListener("change", applySeriesSelection);
-    document.getElementById("seriesSelect").addEventListener("input", applySeriesSelection);
-    applySeriesColorToInputs(getSeriesColor());
-    setKnownUnitOptions();
-    applySeriesSelection();
-    calculateFc();
+    /* ---------- Apply edits ---------- */
+    function applyR(raw) {
+      const v = parseEng(raw, "R");
+      if (!isFinite(v) || v <= 0) { rHint.textContent = "Enter a positive value, e.g. 4k7"; rHint.classList.add("err"); return; }
+      rHint.classList.remove("err");
+      state.R = state.series === "exact" ? v : v; // snap on blur/step, not while typing
+      renderMetricsLight();
+    }
+    function applyC(raw) {
+      const v = parseEng(raw, "C");
+      if (!isFinite(v) || v <= 0) { cHint.textContent = "Enter a positive value, e.g. 100n"; cHint.classList.add("err"); return; }
+      cHint.classList.remove("err");
+      state.C = v;
+      renderMetricsLight();
+    }
+    function applyFc(raw) {
+      const target = parseEng(raw, "F");
+      if (!isFinite(target) || target <= 0) { fcHint.innerHTML = "Enter a positive frequency, e.g. <code>1k</code>"; fcHint.classList.add("err"); return; }
+      fcHint.classList.remove("err");
+      // solve adjusted component
+      if (state.adjust === "R") {
+        let r = 1 / (TWO_PI * target * state.C);
+        state.R = nearestStd(r);
+      } else {
+        let c = 1 / (TWO_PI * target * state.R);
+        state.C = nearestStd(c);
+      }
+      renderMetricsLight();
+    }
+
+    // light re-render while typing (don't clobber the field being edited)
+    function renderMetricsLight() {
+      renderSnapNote();
+      renderMetrics();
+      renderSchematic();
+      drawBode();
+      if (state.probe) updateProbe();
+      writeUrl();
+      // update the non-edited sibling fields
+      if (editing !== "fc") fcInput.value = fmtForInput(fc(), "F");
+      if (editing === "fc") {
+        if (editing !== "r") rInput.value = fmtForInput(state.R, "R");
+        if (editing !== "c") cInput.value = fmtForInput(state.C, "C");
+      }
+      rHint.textContent = "= " + fmtR(state.R) + (state.series === "exact" ? "" : "  ·  " + state.series);
+      cHint.textContent = "= " + fmtC(state.C) + (state.series === "exact" ? "" : "  ·  " + state.series);
+    }
+
+    /* ---------- URL state ---------- */
+    function writeUrl() {
+      const p = new URLSearchParams();
+      p.set("type", state.type);
+      p.set("series", state.series);
+      p.set("r", trimNum(state.R, 6));
+      p.set("c", state.C.toExponential(5));
+      p.set("adj", state.adjust);
+      const url = location.pathname + "#" + p.toString();
+      history.replaceState(null, "", url);
+    }
+    function readUrl() {
+      const h = location.hash.replace(/^#/, "");
+      if (!h) return false;
+      const p = new URLSearchParams(h);
+      let ok = false;
+      if (p.get("type") === "lp" || p.get("type") === "hp") { state.type = p.get("type"); ok = true; }
+      const sr = p.get("series");
+      if (sr && (sr === "exact" || SERIES[sr])) { state.series = sr; ok = true; }
+      const r = parseFloat(p.get("r")); if (isFinite(r) && r > 0) { state.R = r; ok = true; }
+      const c = parseFloat(p.get("c")); if (isFinite(c) && c > 0) { state.C = c; ok = true; }
+      const adj = p.get("adj"); if (adj === "R" || adj === "C") { state.adjust = adj; }
+      return ok;
+    }
+
+    /* ---------- Toast ---------- */
+    let toastTimer = null;
+    function toast(msg) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+    }
+
+    /* ---------- Presets ---------- */
+    const PRESETS = [
+      { name: "Audio LPF 20 kHz", type: "lp", fc: 20000, fix: "C", fixVal: 1e-9 },
+      { name: "Audio HPF 20 Hz", type: "hp", fc: 20, fix: "C", fixVal: 1e-6 },
+      { name: "Anti-alias 48 kHz", type: "lp", fc: 20000, fix: "C", fixVal: 470e-12 },
+      { name: "RC debounce 100 Hz", type: "lp", fc: 100, fix: "R", fixVal: 10000 },
+      { name: "DC block 16 Hz", type: "hp", fc: 16, fix: "C", fixVal: 1e-6 }
+    ];
+    function loadPreset(p) {
+      state.type = p.type;
+      syncTypeSeg();
+      if (p.fix === "C") {
+        state.C = p.fixVal;
+        state.R = nearestStd(1 / (TWO_PI * p.fc * state.C));
+      } else {
+        state.R = p.fixVal;
+        state.C = nearestStd(1 / (TWO_PI * p.fc * state.R));
+      }
+      editing = null;
+      renderAll();
+    }
+    function buildPresets() {
+      const wrap = $("presetChips");
+      wrap.innerHTML = "";
+      PRESETS.forEach(p => {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.type = "button";
+        b.textContent = p.name;
+        b.addEventListener("click", () => loadPreset(p));
+        wrap.appendChild(b);
+      });
+    }
+
+    /* ---------- Segmented controls ---------- */
+    function syncTypeSeg() {
+      document.querySelectorAll("#typeSeg button").forEach(b =>
+        b.setAttribute("aria-pressed", b.dataset.type === state.type ? "true" : "false"));
+    }
+    function syncAdjustSeg() {
+      document.querySelectorAll("#adjustSeg button").forEach(b =>
+        b.setAttribute("aria-pressed", b.dataset.adjust === state.adjust ? "true" : "false"));
+    }
+
+    /* ---------- Theme ---------- */
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      $("themeLabel").textContent = theme === "dark" ? "Light" : "Dark";
+      $("themeBtn").firstChild.textContent = theme === "dark" ? "☀️ " : "🌙 ";
+      try { localStorage.setItem("rcfilter-theme", theme); } catch (e) {}
+      drawBode();
+    }
+
+    /* ---------- Event wiring ---------- */
+    function wire() {
+      // type
+      document.querySelectorAll("#typeSeg button").forEach(b => {
+        b.addEventListener("click", () => { state.type = b.dataset.type; syncTypeSeg(); editing = null; renderAll(); });
+      });
+      // adjust
+      document.querySelectorAll("#adjustSeg button").forEach(b => {
+        b.addEventListener("click", () => { state.adjust = b.dataset.adjust; syncAdjustSeg(); });
+      });
+      // series
+      $("seriesSelect").addEventListener("change", (e) => {
+        state.series = e.target.value;
+        if (state.series !== "exact") {
+          state.R = nearestStd(state.R);
+          state.C = nearestStd(state.C);
+        }
+        editing = null;
+        renderAll();
+      });
+
+      // R / C / fc inputs
+      rInput.addEventListener("input", () => { editing = "r"; applyR(rInput.value); });
+      rInput.addEventListener("change", () => { state.R = state.series === "exact" ? state.R : nearestStd(state.R); editing = null; renderAll(); });
+      rInput.addEventListener("blur", () => { editing = null; renderAll(); });
+
+      cInput.addEventListener("input", () => { editing = "c"; applyC(cInput.value); });
+      cInput.addEventListener("change", () => { state.C = state.series === "exact" ? state.C : nearestStd(state.C); editing = null; renderAll(); });
+      cInput.addEventListener("blur", () => { editing = null; renderAll(); });
+
+      fcInput.addEventListener("input", () => { editing = "fc"; applyFc(fcInput.value); });
+      fcInput.addEventListener("change", () => { editing = null; renderAll(); });
+      fcInput.addEventListener("blur", () => { editing = null; renderAll(); });
+
+      // arrow-key stepping on R and C
+      function keyStep(input, key) {
+        input.addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+          e.preventDefault();
+          const dir = e.key === "ArrowUp" ? 1 : -1;
+          if (key === "r") state.R = stepStd(state.R, dir);
+          else state.C = stepStd(state.C, dir);
+          editing = null;
+          renderAll();
+        });
+      }
+      keyStep(rInput, "r");
+      keyStep(cInput, "c");
+
+      // stepper buttons
+      document.querySelectorAll(".stepper button").forEach(b => {
+        b.addEventListener("click", () => {
+          const dir = Number(b.dataset.dir);
+          if (b.dataset.step === "r") state.R = stepStd(state.R, dir);
+          else state.C = stepStd(state.C, dir);
+          editing = null;
+          renderAll();
+        });
+      });
+
+      // probe
+      probeInput.addEventListener("input", updateProbe);
+
+      // theme
+      $("themeBtn").addEventListener("click", () => {
+        const cur = document.documentElement.getAttribute("data-theme");
+        applyTheme(cur === "dark" ? "light" : "dark");
+      });
+
+      // share
+      $("shareBtn").addEventListener("click", async () => {
+        writeUrl();
+        const url = location.href;
+        try {
+          await navigator.clipboard.writeText(url);
+          toast("Link copied to clipboard");
+        } catch (e) {
+          toast("Copy failed — URL is in the address bar");
+        }
+      });
+
+      // canvas interaction
+      let dragging = false;
+      function evToF(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left);
+        if (!bode.geo) return null;
+        const { plotL, plotR, fOfX } = bode.geo;
+        const cx = Math.min(Math.max(x, plotL), plotR);
+        return fOfX(cx);
+      }
+      function nearFcLine(e) {
+        if (!bode.geo) return false;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const xfc = bode.geo.xOf(fc());
+        return Math.abs(x - xfc) < 9;
+      }
+      canvas.addEventListener("mousemove", (e) => {
+        if (dragging) {
+          const f = evToF(e);
+          if (f) retuneTo(f);
+          return;
+        }
+        canvas.style.cursor = nearFcLine(e) ? "ew-resize" : "crosshair";
+        const f = evToF(e);
+        setReadout(f);
+        drawBode(f);
+      });
+      canvas.addEventListener("mouseleave", () => { if (!dragging) { setReadout(null); drawBode(); } });
+      canvas.addEventListener("mousedown", (e) => {
+        if (nearFcLine(e)) { dragging = true; e.preventDefault(); }
+      });
+      window.addEventListener("mouseup", () => {
+        if (dragging) { dragging = false; editing = null; renderAll(); }
+      });
+      // touch
+      canvas.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        if (nearFcLine(t)) { dragging = true; }
+      }, { passive: true });
+      canvas.addEventListener("touchmove", (e) => {
+        const t = e.touches[0];
+        const f = evToF(t);
+        if (!f) return;
+        if (dragging) { retuneTo(f); e.preventDefault(); }
+        else { setReadout(f); drawBode(f); }
+      }, { passive: false });
+      canvas.addEventListener("touchend", () => { if (dragging) { dragging = false; renderAll(); } });
+
+      window.addEventListener("resize", () => drawBode());
+    }
+
+    function retuneTo(targetFc) {
+      if (state.adjust === "R") {
+        state.R = nearestStd(1 / (TWO_PI * targetFc * state.C));
+      } else {
+        state.C = nearestStd(1 / (TWO_PI * targetFc * state.R));
+      }
+      // live update without full URL spam
+      fcInput.value = fmtForInput(fc(), "F");
+      rInput.value = fmtForInput(state.R, "R");
+      cInput.value = fmtForInput(state.C, "C");
+      renderSnapNote(); renderMetrics(); renderSchematic();
+      setReadout(fc());
+      drawBode();
+    }
+
+    /* ---------- Init ---------- */
+    function init() {
+      // theme: stored or system
+      let theme = "light";
+      try {
+        const stored = localStorage.getItem("rcfilter-theme");
+        if (stored) theme = stored;
+        else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+      } catch (e) {}
+      document.documentElement.setAttribute("data-theme", theme);
+      $("themeLabel").textContent = theme === "dark" ? "Light" : "Dark";
+      $("themeBtn").firstChild.textContent = theme === "dark" ? "☀️ " : "🌙 ";
+
+      readUrl();
+      $("seriesSelect").value = state.series;
+      syncTypeSeg();
+      syncAdjustSeg();
+      buildPresets();
+      wire();
+      renderAll();
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  })();
   </script>
 </body>
 </html>
