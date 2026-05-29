@@ -891,11 +891,16 @@
     }
 
     /* ---------- Plot ---------- */
-    const bode = { fmin: 0, fmax: 0, geo: null };
+    const bode = { fmin: 0, fmax: 0, geo: null, lockedRange: null };
     let dpr = 1;
 
     function freqRange() {
-      const fcv = fc();
+      // While dragging the fc line we lock the axis so the cursor maps to a
+      // stable frequency — otherwise the axis recenters every frame and fc
+      // runs away toward Infinity (which froze the page).
+      if (bode.lockedRange) return bode.lockedRange;
+      let fcv = fc();
+      if (!isFinite(fcv) || fcv <= 0) fcv = 1000;
       const lo = Math.pow(10, Math.floor(Math.log10(fcv)) - 3);
       const hi = Math.pow(10, Math.ceil(Math.log10(fcv)) + 3);
       return { fmin: lo, fmax: hi };
@@ -947,7 +952,10 @@
       ctx.textBaseline = "middle";
 
       // vertical decade gridlines (adaptive labeling so they don't collide)
-      const startDec = Math.ceil(lminF), endDec = Math.floor(lmaxF);
+      let startDec = Math.ceil(lminF), endDec = Math.floor(lmaxF);
+      // Guard against non-finite bounds (e.g. fc -> Infinity): a for-loop
+      // from Infinity to Infinity never terminates.
+      if (!isFinite(startDec) || !isFinite(endDec)) { startDec = 0; endDec = -1; }
       const pxPerDecade = (plotR - plotL) / (lmaxF - lminF);
       const labelStride = pxPerDecade >= 60 ? 1 : (pxPerDecade >= 34 ? 2 : 3);
       ctx.lineWidth = 1;
@@ -1396,15 +1404,15 @@
       });
       canvas.addEventListener("mouseleave", () => { if (!dragging) { setReadout(null); drawBode(); } });
       canvas.addEventListener("mousedown", (e) => {
-        if (nearFcLine(e)) { dragging = true; e.preventDefault(); }
+        if (nearFcLine(e)) { dragging = true; lockAxis(); e.preventDefault(); }
       });
       window.addEventListener("mouseup", () => {
-        if (dragging) { dragging = false; editing = null; renderAll(); }
+        if (dragging) { dragging = false; bode.lockedRange = null; editing = null; renderAll(); }
       });
       // touch
       canvas.addEventListener("touchstart", (e) => {
         const t = e.touches[0];
-        if (nearFcLine(t)) { dragging = true; }
+        if (nearFcLine(t)) { dragging = true; lockAxis(); }
       }, { passive: true });
       canvas.addEventListener("touchmove", (e) => {
         const t = e.touches[0];
@@ -1413,12 +1421,19 @@
         if (dragging) { retuneTo(f); e.preventDefault(); }
         else { setReadout(f); drawBode(f); }
       }, { passive: false });
-      canvas.addEventListener("touchend", () => { if (dragging) { dragging = false; renderAll(); } });
+      canvas.addEventListener("touchend", () => { if (dragging) { dragging = false; bode.lockedRange = null; renderAll(); } });
 
       window.addEventListener("resize", () => drawBode());
     }
 
+    function lockAxis() {
+      // freeze the current visible frequency window for the duration of a drag
+      const r = freqRange();
+      bode.lockedRange = { fmin: r.fmin, fmax: r.fmax };
+    }
+
     function retuneTo(targetFc) {
+      if (!isFinite(targetFc) || targetFc <= 0) return;
       if (state.adjust === "R") {
         state.R = nearestStd(1 / (TWO_PI * targetFc * state.C));
       } else {
