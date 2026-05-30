@@ -618,42 +618,74 @@
       R: 1000,           // ohms
       C: 100e-9,         // farads
       adjust: "R",       // which component to solve when fc changes
-      probe: null        // probe frequency in Hz, or null
+      probe: null,       // probe frequency in Hz, or null
+      rClamped: false,   // last R request hit a realistic limit
+      cClamped: false    // last C request hit a realistic limit
     };
 
+    /* ---------- Realistic component limits ----------
+       Outside these you can't buy or build the part:
+       R: 0.1 Ω (current-sense) … 1 GΩ (high-value).
+       C: 0.1 pF (parasitic/trimmer) … 1 F (supercap). */
+    const LIMITS = {
+      R: { min: 1e-1, max: 1e9 },
+      C: { min: 1e-13, max: 1 }
+    };
+    function clampComp(v, kind) {
+      const L = LIMITS[kind];
+      if (!isFinite(v) || v <= 0) return L.min;
+      return Math.min(Math.max(v, L.min), L.max);
+    }
+    function exceeds(v, kind) {
+      const L = LIMITS[kind];
+      return !isFinite(v) || v > L.max * (1 + 1e-9) || v < L.min * (1 - 1e-9);
+    }
+
     /* ---------- Number parsing / formatting ---------- */
-    function parseEng(raw, kind) {
-      // kind: "R" (ohms) or "C" (farads) or "F" (frequency, Hz)
-      if (raw == null) return NaN;
-      let s = String(raw).trim().toLowerCase().replace(/\s+/g, "").replace(/Ω|ω/g, "").replace(/µ/g, "u");
-      if (!s) return NaN;
-      // strip a trailing unit word for R/F (ohm, ohms, hz, f, farad)
-      s = s.replace(/(ohms?|farads?|hz|f)$/i, "");
-      if (!s) return NaN;
-
-      let mults;
+    function multFor(letter, kind) {
       if (kind === "C") {
-        mults = { p: 1e-12, n: 1e-9, u: 1e-6, m: 1e-3, "": 1 };
-      } else if (kind === "F") {
-        mults = { k: 1e3, m: 1e6, meg: 1e6, g: 1e9, "": 1, r: 1 };
-      } else { // R
-        mults = { r: 1, k: 1e3, m: 1e6, meg: 1e6, g: 1e9, "": 1 };
+        switch (letter) {
+          case "p": return 1e-12; case "n": return 1e-9;
+          case "u": return 1e-6;  case "m": return 1e-3; case "": return 1;
+        }
+        return undefined;
       }
+      // R (ohms) or F (Hz): SI prefixes, case-sensitive M (mega) vs m (milli)
+      switch (letter) {
+        case "p": return 1e-12; case "n": return 1e-9; case "u": return 1e-6;
+        case "m": return 1e-3;  case "": return 1;
+        case "k": case "K": return 1e3;
+        case "M": return 1e6;
+        case "g": case "G": return 1e9;
+        case "r": case "R": return kind === "R" ? 1 : undefined;
+      }
+      return undefined;
+    }
 
-      // RKM infix code, e.g. 4k7, 4u7, 2n2, 1r5, R47
-      const infix = s.match(/^(\d*)(p|n|u|m|r|k|g)(\d+)$/);
-      if (infix) {
-        const mult = mults[infix[2]];
+    function parseEng(raw, kind) {
+      // kind: "R" (ohms), "C" (farads), or "F" (frequency, Hz).
+      // Case matters for SI prefixes: M = mega, m = milli — do NOT lowercase.
+      if (raw == null) return NaN;
+      let s = String(raw).trim().replace(/\s+/g, "").replace(/[Ωω]/g, "").replace(/µ/g, "u");
+      if (!s) return NaN;
+      s = s.replace(/(ohms?|farads?|hz)$/i, "");      // strip unit words
+      if (kind === "C") s = s.replace(/[fF]$/, "");    // strip trailing F (farad)
+      if (!s) return NaN;
+
+      const LET = "pnumkKMgGrR";
+      // RKM infix code, e.g. 4k7, 4M7, 2n2, 1R5, R47
+      let m = s.match(new RegExp("^(\\d*)([" + LET + "])(\\d+)$"));
+      if (m) {
+        const mult = multFor(m[2], kind);
         if (mult == null) return NaN;
-        const num = parseFloat((infix[1] || "0") + "." + infix[3]);
-        return num * mult;
+        return parseFloat((m[1] || "0") + "." + m[3]) * mult;
       }
-      // number followed by optional suffix
-      const m = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(meg|p|n|u|m|r|k|g)?$/);
+      // number followed by an optional suffix (meg or a single SI letter)
+      m = s.match(new RegExp("^([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)(meg|[" + LET + "])?$"));
       if (!m) return NaN;
       const num = parseFloat(m[1]);
       if (!isFinite(num)) return NaN;
-      const mult = mults[m[2] || ""];
+      const mult = /^meg$/i.test(m[2] || "") ? 1e6 : multFor(m[2] || "", kind);
       if (mult == null) return NaN;
       return num * mult;
     }
@@ -689,6 +721,22 @@
     function fmtSec(s) {
       if (!isFinite(s) || s <= 0) return "—";
       return fmtSI(s, "s");
+    }
+
+    function limitText(kind) {
+      const L = LIMITS[kind];
+      return kind === "R" ? fmtR(L.min) + " – " + fmtR(L.max) : fmtC(L.min) + " – " + fmtC(L.max);
+    }
+
+    // Single source of truth for the R/C value hints (incl. clamp warnings).
+    function renderCompHints() {
+      const seriesTag = state.series === "exact" ? "" : "  ·  " + state.series;
+      rHint.classList.toggle("err", state.rClamped);
+      rHint.innerHTML = "= " + fmtR(state.R) + seriesTag +
+        (state.rClamped ? "  ·  clamped to realistic range (" + limitText("R") + ")" : "");
+      cHint.classList.toggle("err", state.cClamped);
+      cHint.innerHTML = "= " + fmtC(state.C) + seriesTag +
+        (state.cClamped ? "  ·  clamped to realistic range (" + limitText("C") + ")" : "");
     }
 
     /* ---------- E-series snapping ---------- */
@@ -777,8 +825,7 @@
       if (editing !== "r") { rInput.value = fmtForInput(state.R, "R"); }
       if (editing !== "c") { cInput.value = fmtForInput(state.C, "C"); }
       if (editing !== "fc") { fcInput.value = fmtForInput(fc(), "F"); }
-      rHint.textContent = state.series === "exact" ? "= " + fmtR(state.R) : "= " + fmtR(state.R) + "  ·  " + state.series;
-      cHint.textContent = state.series === "exact" ? "= " + fmtC(state.C) : "= " + fmtC(state.C) + "  ·  " + state.series;
+      renderCompHints();
     }
 
     function fmtForInput(value, kind) {
@@ -1161,28 +1208,30 @@
     function applyR(raw) {
       const v = parseEng(raw, "R");
       if (!isFinite(v) || v <= 0) { rHint.textContent = "Enter a positive value, e.g. 4k7"; rHint.classList.add("err"); return; }
-      rHint.classList.remove("err");
-      state.R = state.series === "exact" ? v : v; // snap on blur/step, not while typing
+      state.rClamped = exceeds(v, "R");
+      state.R = clampComp(v, "R"); // snap on blur/step, not while typing
       renderMetricsLight();
     }
     function applyC(raw) {
       const v = parseEng(raw, "C");
       if (!isFinite(v) || v <= 0) { cHint.textContent = "Enter a positive value, e.g. 100n"; cHint.classList.add("err"); return; }
-      cHint.classList.remove("err");
-      state.C = v;
+      state.cClamped = exceeds(v, "C");
+      state.C = clampComp(v, "C");
       renderMetricsLight();
     }
     function applyFc(raw) {
       const target = parseEng(raw, "F");
       if (!isFinite(target) || target <= 0) { fcHint.innerHTML = "Enter a positive frequency, e.g. <code>1k</code>"; fcHint.classList.add("err"); return; }
       fcHint.classList.remove("err");
-      // solve adjusted component
+      // solve adjusted component, clamped to a realistic range
       if (state.adjust === "R") {
-        let r = 1 / (TWO_PI * target * state.C);
-        state.R = nearestStd(r);
+        const r = 1 / (TWO_PI * target * state.C);
+        state.rClamped = exceeds(r, "R");
+        state.R = clampComp(nearestStd(clampComp(r, "R")), "R");
       } else {
-        let c = 1 / (TWO_PI * target * state.R);
-        state.C = nearestStd(c);
+        const c = 1 / (TWO_PI * target * state.R);
+        state.cClamped = exceeds(c, "C");
+        state.C = clampComp(nearestStd(clampComp(c, "C")), "C");
       }
       renderMetricsLight();
     }
@@ -1201,8 +1250,7 @@
         if (editing !== "r") rInput.value = fmtForInput(state.R, "R");
         if (editing !== "c") cInput.value = fmtForInput(state.C, "C");
       }
-      rHint.textContent = "= " + fmtR(state.R) + (state.series === "exact" ? "" : "  ·  " + state.series);
-      cHint.textContent = "= " + fmtC(state.C) + (state.series === "exact" ? "" : "  ·  " + state.series);
+      renderCompHints();
     }
 
     /* ---------- URL state ---------- */
@@ -1224,8 +1272,8 @@
       if (p.get("type") === "lp" || p.get("type") === "hp") { state.type = p.get("type"); ok = true; }
       const sr = p.get("series");
       if (sr && (sr === "exact" || SERIES[sr])) { state.series = sr; ok = true; }
-      const r = parseFloat(p.get("r")); if (isFinite(r) && r > 0) { state.R = r; ok = true; }
-      const c = parseFloat(p.get("c")); if (isFinite(c) && c > 0) { state.C = c; ok = true; }
+      const r = parseFloat(p.get("r")); if (isFinite(r) && r > 0) { state.R = clampComp(r, "R"); ok = true; }
+      const c = parseFloat(p.get("c")); if (isFinite(c) && c > 0) { state.C = clampComp(c, "C"); ok = true; }
       const adj = p.get("adj"); if (adj === "R" || adj === "C") { state.adjust = adj; }
       return ok;
     }
@@ -1250,13 +1298,15 @@
     ];
     function loadPreset(p) {
       state.type = p.type;
+      state.rClamped = false;
+      state.cClamped = false;
       syncTypeSeg();
       if (p.fix === "C") {
-        state.C = p.fixVal;
-        state.R = nearestStd(1 / (TWO_PI * p.fc * state.C));
+        state.C = clampComp(p.fixVal, "C");
+        state.R = clampComp(nearestStd(1 / (TWO_PI * p.fc * state.C)), "R");
       } else {
-        state.R = p.fixVal;
-        state.C = nearestStd(1 / (TWO_PI * p.fc * state.R));
+        state.R = clampComp(p.fixVal, "R");
+        state.C = clampComp(nearestStd(1 / (TWO_PI * p.fc * state.R)), "C");
       }
       editing = null;
       renderAll();
@@ -1307,8 +1357,8 @@
       $("seriesSelect").addEventListener("change", (e) => {
         state.series = e.target.value;
         if (state.series !== "exact") {
-          state.R = nearestStd(state.R);
-          state.C = nearestStd(state.C);
+          state.R = clampComp(nearestStd(state.R), "R");
+          state.C = clampComp(nearestStd(state.C), "C");
         }
         editing = null;
         renderAll();
@@ -1316,27 +1366,38 @@
 
       // R / C / fc inputs
       rInput.addEventListener("input", () => { editing = "r"; applyR(rInput.value); });
-      rInput.addEventListener("change", () => { state.R = state.series === "exact" ? state.R : nearestStd(state.R); editing = null; renderAll(); });
+      rInput.addEventListener("change", () => { state.R = clampComp(state.series === "exact" ? state.R : nearestStd(state.R), "R"); editing = null; renderAll(); });
       rInput.addEventListener("blur", () => { editing = null; renderAll(); });
 
       cInput.addEventListener("input", () => { editing = "c"; applyC(cInput.value); });
-      cInput.addEventListener("change", () => { state.C = state.series === "exact" ? state.C : nearestStd(state.C); editing = null; renderAll(); });
+      cInput.addEventListener("change", () => { state.C = clampComp(state.series === "exact" ? state.C : nearestStd(state.C), "C"); editing = null; renderAll(); });
       cInput.addEventListener("blur", () => { editing = null; renderAll(); });
 
       fcInput.addEventListener("input", () => { editing = "fc"; applyFc(fcInput.value); });
       fcInput.addEventListener("change", () => { editing = null; renderAll(); });
       fcInput.addEventListener("blur", () => { editing = null; renderAll(); });
 
+      // step one E-series notch, staying within realistic limits
+      function doStep(key, dir) {
+        if (key === "r") {
+          const nv = stepStd(state.R, dir);
+          state.rClamped = exceeds(nv, "R");
+          state.R = clampComp(nv, "R");
+        } else {
+          const nv = stepStd(state.C, dir);
+          state.cClamped = exceeds(nv, "C");
+          state.C = clampComp(nv, "C");
+        }
+        editing = null;
+        renderAll();
+      }
+
       // arrow-key stepping on R and C
       function keyStep(input, key) {
         input.addEventListener("keydown", (e) => {
           if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
           e.preventDefault();
-          const dir = e.key === "ArrowUp" ? 1 : -1;
-          if (key === "r") state.R = stepStd(state.R, dir);
-          else state.C = stepStd(state.C, dir);
-          editing = null;
-          renderAll();
+          doStep(key, e.key === "ArrowUp" ? 1 : -1);
         });
       }
       keyStep(rInput, "r");
@@ -1344,13 +1405,7 @@
 
       // stepper buttons
       document.querySelectorAll(".stepper button").forEach(b => {
-        b.addEventListener("click", () => {
-          const dir = Number(b.dataset.dir);
-          if (b.dataset.step === "r") state.R = stepStd(state.R, dir);
-          else state.C = stepStd(state.C, dir);
-          editing = null;
-          renderAll();
-        });
+        b.addEventListener("click", () => doStep(b.dataset.step, Number(b.dataset.dir)));
       });
 
       // probe
@@ -1435,9 +1490,13 @@
     function retuneTo(targetFc) {
       if (!isFinite(targetFc) || targetFc <= 0) return;
       if (state.adjust === "R") {
-        state.R = nearestStd(1 / (TWO_PI * targetFc * state.C));
+        const r = 1 / (TWO_PI * targetFc * state.C);
+        state.rClamped = exceeds(r, "R");
+        state.R = clampComp(nearestStd(clampComp(r, "R")), "R");
       } else {
-        state.C = nearestStd(1 / (TWO_PI * targetFc * state.R));
+        const c = 1 / (TWO_PI * targetFc * state.R);
+        state.cClamped = exceeds(c, "C");
+        state.C = clampComp(nearestStd(clampComp(c, "C")), "C");
       }
       // live update without full URL spam
       fcInput.value = fmtForInput(fc(), "F");
